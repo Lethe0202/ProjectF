@@ -11,6 +11,7 @@
 #include "Particles/ParticleSystemComponent.h"
 #include "ProjectF/Character/PFCharacterBase.h"
 #include "ProjectF/Character/State/AttackingState.h"
+#include "ProjectF/Character/State/DeadState.h"
 #include "ProjectF/Character/State/DodgingState.h"
 #include "ProjectF/Character/State/ExecutionState.h"
 #include "ProjectF/Character/State/GuardingState.h"
@@ -35,7 +36,7 @@ void UCombatStateComponent::BeginPlay()
 	Super::BeginPlay();
 	
 	CombatState = MakeUnique<IdleState>();
-
+	
 	if (GetOwner())
 	{
 		OwnerCharacter = Cast<APFCharacterBase>(GetOwner());
@@ -132,6 +133,7 @@ bool UCombatStateComponent::ChangeState(ECombatState newState)
 		
 	case ECombatState::Stun:
 		ChangeToState<StunState>();
+		OwnerCharacter->StopLogic("Stun");
 		break;
 	
 	case ECombatState::Execution:
@@ -139,7 +141,7 @@ bool UCombatStateComponent::ChangeState(ECombatState newState)
 		break;
 	
 	case ECombatState::Dead:
-		//ChangeToState<IdleState>();
+		ChangeToState<DeadState>();
 		OwnerCharacter->StopLogic("Dead");
 		break;
 	}
@@ -155,6 +157,11 @@ bool UCombatStateComponent::CanChangeState(ECombatState NewState)
 void UCombatStateComponent::ActivateCounter(AActor* Target, FDamageEvent const& DamageEvent)
 {
 	if (bDodging)
+	{
+		return;
+	}
+
+	if (!Cast<ACharacter>(Target))
 	{
 		return;
 	}

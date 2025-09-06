@@ -25,6 +25,7 @@ class PROJECTF_API APFPlayerController : public APlayerController, public IGener
 
 protected:
 	virtual void OnPossess(APawn* InPawn) override;
+	virtual void OnUnPossess() override;
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
 	
@@ -39,13 +40,19 @@ protected:
 	void Input_RightTarget();
 	
 	void Input_Interaction();
+	void Input_Option();
 	
 public:
+	UFUNCTION(BlueprintCallable)
+	void VisibleHUD(bool bInVisible);
+	
 	/*
 	 * Interaction
 	 */
 	void ShowDialogueUI(FName DialogueID);
 	void HiddenDialogueUI();
+
+	void ShowGameOverUI();
 	
 	UFUNCTION(BlueprintCallable)
 	void AddWidgetToHUDSlot(FName SlotName, UUserWidget* Widget);
@@ -83,13 +90,16 @@ protected:
 	TObjectPtr<UTargetingComponent> OwnerTargetingComponent;
 
 	/*
-	* System
+	* Input
 	*/
 	UPROPERTY(EditDefaultsOnly, Category = "Input | System", meta = (AllowPrivateAccess = true))
 	TObjectPtr<UInputMappingContext> SystemMappingContext;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input | System", meta = (AllowPrivateAccess = true))
 	TObjectPtr<UInputAction> InteractionAction;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "Input | System", meta = (AllowPrivateAccess = true))
+	TObjectPtr<UInputAction> OptionAction;
 	
 	/*
 	 * Interaction
@@ -101,13 +111,22 @@ protected:
 	TObjectPtr<UInputAction> NextDialogueAction;
 	
 	/*
-	 * Main HUD
+	 * Widget
 	 */
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Widget")
 	TSubclassOf<UPlayerHUDWidget> PlayerHUDWidgetClass;
 	
 	UPROPERTY()
 	TObjectPtr<UPlayerHUDWidget> PlayerHUDWidget;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Widget")
+	TSubclassOf<UUserWidget> GameOverWidgetClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Widget")
+	TSubclassOf<UUserWidget> OptionWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<UUserWidget> OptionWidget;
 	
 	/*
 	 * Runtime UI Panel

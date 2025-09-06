@@ -6,7 +6,6 @@
 
 void UAnimManager::InitAnimManager()
 {
-	AnimManager = this;
 }
 
 UAnimMontage* UAnimManager::GetWeaponEquip(FName ID) const
@@ -113,6 +112,17 @@ UAnimMontage* UAnimManager::GetStun(FName ID) const
 	if (CombatAnimRow)
 	{
 		return CombatAnimRow->Stun;
+	}
+
+	return nullptr;
+}
+
+UAnimMontage* UAnimManager::GetDead(FName ID) const
+{
+	FCombatAnimTableRow* CombatAnimRow = CombatAnimTable->FindRow<FCombatAnimTableRow>(ID, "");
+	if (CombatAnimRow)
+	{
+		return CombatAnimRow->Dead;
 	}
 
 	return nullptr;

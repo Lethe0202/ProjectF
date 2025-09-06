@@ -16,10 +16,10 @@ class PROJECTF_API UProgressHUDWidget : public UUserWidget
 	GENERATED_BODY()
 	
 public:
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
 	void OnProgressChanged(float OldValue, float NewValue, float MaxValue, AActor* Instigator);
 	
 protected:
-	UPROPERTY(meta = (BindWidget))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (BindWidget))
 	TObjectPtr<UProgressBar> ProgressBar;
 };

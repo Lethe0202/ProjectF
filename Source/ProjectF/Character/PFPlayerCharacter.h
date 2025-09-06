@@ -17,7 +17,8 @@ class UTargetingComponent;
 class USpringArmComponent;
 class UCameraComponent;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnUpdatePotionCooldownSignature, float, MaxCooldown, float, CurrentCooldown);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnUpdateItemCntSignature, int, newItemCnt);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnUpdateItemCooldownSignature, float, MaxCooldown, float, CurrentCooldown);
 
 UCLASS()
 class PROJECTF_API APFPlayerCharacter : public APFCharacterBase
@@ -45,7 +46,7 @@ public:
 	void Input_StrongAttack(const FInputActionValue& Value);
 	void Input_AttackHold(const FInputActionValue& Value);
 	void Input_AttackHoldStop(const FInputActionValue& Value);
-
+	
 	void Input_AbilityPressed(int Index);
 	void Input_AbilityHold(int Index);
 	void Input_AbilityReleased(int Index);
@@ -78,6 +79,13 @@ public:
 	virtual float ApplyStamina(float InStamina) override;
 	virtual void ModifyDamage(float DamageAmount, AActor* InInstigator) override;
 
+	UFUNCTION(BlueprintCallable)
+	void AddHealthItemCnt(int InCnt);
+	
+	int GetMaxHealthItemCnt() const { return MaxHealthItemCnt; }
+	void SetMaxHealthItemCnt(int InCnt);
+	void SetCurrentHealthItemCnt(int InCnt);
+	
 	/*
 	 * Camera
 	 */
@@ -90,7 +98,7 @@ public:
 	 * Utility
 	 */
 	void RotateMovement();
-
+	
 	/*
 	 * Interaction
 	 */
@@ -101,25 +109,42 @@ public:
 
 	UFUNCTION()
 	void HandleInteractionSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+	
+	/*
+	 * Around Actor Trigger
+	 */
+	UFUNCTION()
+	void HandleAroundActorTriggerBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	UFUNCTION()
+	void HandleAroundActorTriggerEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
 public:
 	/*
 	 * Delegate
 	 */
-	FOnUpdatePotionCooldownSignature OnUpdatePotionCooldown;
+	FOnUpdateItemCntSignature OnUpdateItemCnt;
+	FOnUpdateItemCooldownSignature OnUpdatePotionCooldown;
 	
 protected:
 	virtual void BeginPlay() override;
 
+	virtual void StartDeadCharacter() override;
+	
 	UFUNCTION()
 	void HandleUpdatePotionCooldown();
-
+	
 	/*
 	 * Combat | Guard
 	 */
-	virtual void SuccessGuardCounter(AActor* InInstigator) override;
+	virtual void SuccessParry(AActor* InInstigator) override;
 	virtual void SuccessGuard(float InStaminaValue) override;
 	virtual void SuccessAbilityCounter() override;
+
+	/*
+	 * Status
+	 */
+	virtual bool CanRegenerateStamina() const override;
 	
 protected:
 	/*
@@ -159,6 +184,10 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input | Combat", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UInputAction> ExecutionAction;
+
+	/*
+	 * Combat | Execution
+	 */
 	
 	UPROPERTY()
 	TObjectPtr<APFCharacterBase> ExecutionTargetCharacter;
@@ -173,8 +202,11 @@ protected:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat | Execution")
 	TObjectPtr<UParticleSystem> ExecutionHitEffect;
-
+	
+	FEffectInfo ExecutionEffectInfo;
+	
 	bool bPlayExecution = false;
+	
 
 	/*
 	 * Combat | Guard
@@ -230,6 +262,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Status | Heal")
 	TObjectPtr<UAnimMontage> HealingMontage;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Status | Heal")
+	int MaxHealthItemCnt = 2;
+	int CurrentHealthItemCnt = 1;
+	
 	float PotionCooldownStartTime = 0.f;
 	FTimerHandle HealingCooldownTimerHandle;
 	
@@ -240,23 +276,34 @@ private:
 	TMap<int, FAbilityInputData> AbilityInputDataMap;
 	
 private:
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USpringArmComponent> CameraBoom;
 	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UCameraComponent> FollowCamera;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UTargetingComponent> TargetingComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Camera", meta = (AllowPrivateAccess = "true"))
+	bool bUpdateTargeting = true;
 
 	/*
 	 * Interaction
 	 */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USphereComponent> InteractionSphereComponent;
 	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
 	TArray<AActor*> InteractableActors;
+	
+	/*
+	* Around Actor Trigger
+	*/
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CollitionTrigger", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USphereComponent> AroundActorTriggerComponent;
 };
+
+
 
 

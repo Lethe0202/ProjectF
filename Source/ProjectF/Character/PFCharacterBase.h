@@ -34,12 +34,15 @@ public:
 	
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	UFUNCTION(BlueprintImplementableEvent)
+	void HitReact(FHitResult HitResult);
 	
 	/*
 	 * Combat
 	 */
 	virtual bool TryAttack();
-	virtual void AttackHold(float HoldTime);
+	virtual void StrongAttackHold(float HoldTime);
 	virtual bool TryAttackHold(float HoldTime);
 
 	UFUNCTION(BlueprintCallable)
@@ -98,25 +101,37 @@ public:
 	virtual float ApplyStamina(float InStamina);
 	
 	void SetControlledMovement(bool bControlledMovement);
+
+	void HitReact(FName BoneName, FVector HitNormal);
 	
 protected:
 	virtual void BeginPlay() override;
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 	virtual void ModifyDamage(float DamageAmount, AActor* InInstigator);
+	virtual void StartDeadCharacter();
+
+	void InitCharacterStatus();
 	
 	/*
 	* Combat 
 	*/
-	virtual void SuccessGuardCounter(AActor* InInstigator);
+	virtual void SuccessParry(AActor* InInstigator);
 	virtual void SuccessGuard(float InStaminaValue);
 	virtual void SuccessAbilityCounter(); 
 
 	UFUNCTION()
 	void ResetParryInvincible();
 
+	/*
+	 * Status
+	 */
+	virtual bool CanRegenerateStamina() const;
+
 public:
+	UFUNCTION(BlueprintCallable)
 	FName GetID() const { return ID; }
-	virtual FGenericTeamId GetGenericTeamId() const override; //{ return static_cast<uint8>(TeamType); }
+	
+	virtual FGenericTeamId GetGenericTeamId() const override;
 	virtual ETeamAttitude::Type GetTeamAttitudeTowards(const AActor& Other) const override;
 
 	UFUNCTION(BlueprintCallable)

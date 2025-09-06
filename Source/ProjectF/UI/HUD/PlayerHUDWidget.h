@@ -6,6 +6,7 @@
 #include "Blueprint/UserWidget.h"
 #include "PlayerHUDWidget.generated.h"
 
+class UCooldownItemSlotWidget;
 class UCooldownSlotWidget;
 class UOverlay;
 class APFPlayerCharacter;
@@ -25,6 +26,9 @@ public:
 	void InitPlayerHUDWidget(APFPlayerCharacter* OwnerCharacter);
 
 	void AddWidgetToSlot(FName SlotName, UUserWidget* Widget);
+
+protected:
+	virtual FPrimaryAssetId GetPrimaryAssetId() const override;
 	
 protected:
 	UPROPERTY(meta = (BindWidget))
@@ -40,7 +44,7 @@ protected:
 	TObjectPtr<UAbilityPanelWidget> AbilityPanel;
 
 	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<UCooldownSlotWidget> PotionSlot;
+	TObjectPtr<UCooldownItemSlotWidget> PotionSlot;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TMap<FName, UOverlay*> RuntimeUISlotMap;

@@ -54,7 +54,7 @@ void UAbility_PlayerCharge::AbilityEffect(int Index)
 				}
 				else
 				{
-					EffectType->ApplyEffect(Target, Owner.Get(), FTransform::Identity, AbilityDataAsset->EffectContainer[Index].bStrongEffect);
+					EffectType->ApplyEffect(Target, Owner.Get(), FEffectInfo(), AbilityDataAsset->EffectContainer[Index].bStrongEffect);
 				}
 			}
 		}

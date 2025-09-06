@@ -8,12 +8,9 @@
 #include "Blueprint/UserWidget.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "ProjectF/Character/PFPlayerCharacter.h"
-#include "ProjectF/Interaction/Interactable.h"
 #include "ProjectF/Player/TargetingComponent.h"
 #include "ProjectF/UI/HUD/PlayerHUDWidget.h"
 #include "ProjectF/UI/HUD/Dialogue/DialogueWidget.h"
-
-class UEnhancedInputLocalPlayerSubsystem;
 
 void APFPlayerController::OnPossess(APawn* InPawn)
 {
@@ -22,12 +19,33 @@ void APFPlayerController::OnPossess(APawn* InPawn)
 	if (Cast<APFPlayerCharacter>(InPawn))
 	{
 		OwnerCharacter = Cast<APFPlayerCharacter>(InPawn);
+		if (!OwnerCharacter) return;
+
 		OwnerCharacter->CharacterInitDelegate.AddDynamic(this, &APFPlayerController::HandleCharacterInit);
 
 		OwnerTargetingComponent = InPawn->FindComponentByClass<UTargetingComponent>();
+		
+		TeamId = OwnerCharacter->GetGenericTeamId();
 	}
-	
-	TeamId = OwnerCharacter->GetGenericTeamId();
+}
+
+void APFPlayerController::OnUnPossess()
+{
+	Super::OnUnPossess();
+
+	if (PlayerHUDWidget)
+	{
+		PlayerHUDWidget->SetVisibility(ESlateVisibility::Collapsed);
+	}
+
+	if (GameOverWidgetClass)
+	{
+		UUserWidget* GameOverWidget = CreateWidget(this, GameOverWidgetClass);
+		if (GameOverWidget)
+		{
+			GameOverWidget->AddToViewport(10);
+		}
+	}
 }
 
 void APFPlayerController::BeginPlay()
@@ -54,6 +72,7 @@ void APFPlayerController::SetupInputComponent()
 			EnhancedInputComponent->BindAction(RightTargetAction, ETriggerEvent::Started, this, &APFPlayerController::Input_RightTarget);
 			
 			EnhancedInputComponent->BindAction(InteractionAction, ETriggerEvent::Started, this, &APFPlayerController::Input_Interaction);
+			EnhancedInputComponent->BindAction(OptionAction, ETriggerEvent::Started, this, &APFPlayerController::Input_Option);
 		}
 	}
 }
@@ -127,6 +146,46 @@ void APFPlayerController::Input_Interaction()
 	OwnerCharacter->TryInteraction();
 }
 
+void APFPlayerController::Input_Option()
+{
+	if (OptionWidget)
+	{
+		if (OptionWidget->IsVisible())
+		{
+			OptionWidget->SetVisibility(ESlateVisibility::Collapsed);
+		}
+		else
+		{
+			OptionWidget->SetVisibility(ESlateVisibility::Visible);
+			OptionWidget->AddToViewport();
+		}
+
+	}
+	else
+	{
+		if (OptionWidgetClass)
+		{
+			OptionWidget = CreateWidget<UUserWidget>(this, OptionWidgetClass);
+			OptionWidget->AddToViewport();
+		}
+	}
+	
+}
+
+void APFPlayerController::VisibleHUD(bool bInVisible)
+{
+	if (!PlayerHUDWidget) return;
+	
+	if (bInVisible)
+	{
+		PlayerHUDWidget->SetVisibility(ESlateVisibility::Visible);
+	}
+	else
+	{
+		PlayerHUDWidget->SetVisibility(ESlateVisibility::Collapsed);
+	}
+}
+
 void APFPlayerController::ShowDialogueUI(FName DialogueID)
 {
 	if (DialogueWidget)
@@ -163,6 +222,19 @@ void APFPlayerController::HiddenDialogueUI()
 		DialogueWidget->SetVisibility(ESlateVisibility::Collapsed);
 		SetInputMode(FInputModeGameOnly());
 		bShowMouseCursor = false;
+	}
+}
+
+void APFPlayerController::ShowGameOverUI()
+{
+	if (GameOverWidgetClass)
+	{
+		UUserWidget* GameOverWidget = CreateWidget<UUserWidget>(this, GameOverWidgetClass);
+		if (GameOverWidget)
+		{
+			GameOverWidget->AddToViewport(10);
+			bShowMouseCursor = true;
+		}
 	}
 }
 

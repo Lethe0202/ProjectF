@@ -3,11 +3,10 @@
 
 #include "AnimNotifyState_Push.h"
 
-void UAnimNotifyState_Push::NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation,
-	float TotalDuration)
+void UAnimNotifyState_Push::NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration, const FAnimNotifyEventReference& EventReference)
 {
-	Super::NotifyBegin(MeshComp, Animation, TotalDuration);
-
+	Super::NotifyBegin(MeshComp, Animation, TotalDuration, EventReference);
+	
 	ElapsedTime = 0.f;
 	Duration = TotalDuration;
 
@@ -19,13 +18,13 @@ void UAnimNotifyState_Push::NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimS
 	}
 }
 
-void UAnimNotifyState_Push::NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime)
+void UAnimNotifyState_Push::NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference)
 {
-	Super::NotifyTick(MeshComp, Animation, FrameDeltaTime);
+	Super::NotifyTick(MeshComp, Animation, FrameDeltaTime, EventReference);
 	
 	ElapsedTime += FrameDeltaTime;
 	float Alpha = FMath::Clamp(ElapsedTime / Duration, 0.f, 1.f);
-
+	
 	AActor* Owner = MeshComp->GetOwner();
 	if (Owner)
 	{
@@ -34,9 +33,4 @@ void UAnimNotifyState_Push::NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSe
 		
 		Owner->SetActorLocation(NewLocation, true);
 	}
-}
-
-void UAnimNotifyState_Push::NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation)
-{
-	Super::NotifyEnd(MeshComp, Animation);
 }

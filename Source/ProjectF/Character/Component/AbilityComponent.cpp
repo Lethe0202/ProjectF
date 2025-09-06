@@ -90,7 +90,7 @@ bool UAbilityComponent::ActivateAbility(int Index)
 		CurrentActivateAbility = Abilities[Index];
 		ApplyCooldown(Index);
 		
-		return true;	
+		return true;
 	}
 
 	return false;

@@ -1,7 +1,8 @@
 ﻿#include "TargetTypes.h"
 
+#include "KismetTraceUtils.h"
+#include "PFCollisionChannel.h"
 #include "GameFramework/Character.h"
-#include "Kismet/KismetSystemLibrary.h"
 #include "ProjectF/Character/PFCharacterBase.h"
 
 void UTargetType::GetTargets_Implementation(AActor* TargetingActor, TArray<AActor*>& OutActors, TArray<FHitResult>& OutHitResults) const
@@ -39,25 +40,32 @@ void UTargetType_Sphere::GetTargets_Implementation(AActor* TargetingActor, TArra
 	IgnoreActors.Add(TargetingActor);
 	
 	TArray<FHitResult> Results;
-
-	FCollisionResponseParams CollisionResponseParams;
+	
 	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypeQuery;
-	ObjectTypeQuery.Add(UEngineTypes::ConvertToObjectType(ECollisionChannel::ECC_Pawn));
+	ObjectTypeQuery.Add(UEngineTypes::ConvertToObjectType(ECC_CharacterMesh));
+	
+	TArray<FHitResult> emptyResult;
 
-	EDrawDebugTrace::Type DebugTrace = EDrawDebugTrace::None; 
-	
-	if (!bDebug)
+#if WITH_EDITOR
+	if (bDebug)
 	{
-		DebugTrace = EDrawDebugTrace::None;
+		DrawDebugSphereTraceMulti(TargetingActor->GetWorld(), TraceStartLocation, TraceEndLocation, Radius, DrawDebugTrace, false, emptyResult, FColor::Red, FColor::Green, Duration);
 	}
-	else
-	{
-		DebugTrace = DrawDebugTrace;
-	}
+#endif
 	
-	bool bHit = UKismetSystemLibrary::SphereTraceMultiForObjects(
-		TargetingActor->GetWorld(), TraceStartLocation, TraceEndLocation, Radius, ObjectTypeQuery,
-		false, IgnoreActors, DebugTrace, Results, true, FColor::Red, FColor::Green, Duration);
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(MyTrace), false);
+	QueryParams.AddIgnoredActor(TargetingActor);
+	QueryParams.bReturnPhysicalMaterial = true;
+	
+	bool bHit = TargetingActor->GetWorld()->SweepMultiByObjectType(
+		Results,
+		TraceStartLocation,
+		TraceEndLocation,
+		FQuat::Identity,
+		ObjectTypeQuery,
+		FCollisionShape::MakeSphere(Radius),
+		QueryParams
+	);
 	
 	if (bHit)
 	{
@@ -80,12 +88,12 @@ void UTargetType_Targeting::GetTargets_Implementation(AActor* TargetingActor, TA
 	{
 		return;
 	}
-
+	
 	if (PFCharacterBase->GetTarget())
 	{
 		FHitResult HitResult;
 		HitResult.ImpactPoint = PFCharacterBase->GetTarget()->GetActorLocation();
 		OutHitResults.Emplace(HitResult);
-		OutActors.Emplace(PFCharacterBase->GetTarget());	
+		OutActors.Emplace(PFCharacterBase->GetTarget());
 	}
 }

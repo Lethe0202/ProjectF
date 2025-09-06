@@ -14,6 +14,7 @@
 
 #include "ProjectF/Manager/AnimManager.h"
 #include "ProjectF/Manager/PFGameInstance.h"
+#include "ProjectF/Manager/ResourceManager.h"
 #include "ProjectF/Weapon/WeaponBase.h"
 
 APFCharacterBase::APFCharacterBase()
@@ -33,6 +34,8 @@ APFCharacterBase::APFCharacterBase()
 void APFCharacterBase::BeginPlay()
 {
 	Super::BeginPlay();
+
+	InitCharacterStatus();
 	
 	if (StartWeaponClass)
 	{
@@ -41,8 +44,10 @@ void APFCharacterBase::BeginPlay()
 		Weapon = GetWorld()->SpawnActor<AWeaponBase>(StartWeaponClass, ActorSpawnParameters);
 		Weapon->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale, FName("hand_r_socket"));
 	}
-
+	
 	CharacterInitDelegate.Broadcast();
+
+	StaminaComponent->CanRegenCondition.BindUObject(this, &ThisClass::CanRegenerateStamina);
 }
 
 void APFCharacterBase::Tick(float DeltaTime)
@@ -60,7 +65,19 @@ float APFCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 	float Damage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 	if (Damage == 0.f)
 	{
-		return Damage;
+		return 0.0f;
+	}
+	
+	if (CombatStateComponent->GetCurrentState() == ECombatState::Dead)
+	{
+		return 0.0;
+	}
+	
+	FPointDamageEvent* PointDamageEvent = nullptr;
+	if (DamageEvent.IsOfType(FPointDamageEvent::ClassID))
+	{
+		PointDamageEvent = (FPointDamageEvent*) &DamageEvent;
+		GetMesh()->Bounds.GetBox().GetClosestPointTo(PointDamageEvent->ShotDirection);
 	}
 	
 	if (CombatStateComponent->GetIsCountering())
@@ -98,6 +115,7 @@ float APFCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 		{
 			InterruptAction();
 			ModifyDamage(Damage, DamageCauser);
+			HitReact(PointDamageEvent->HitInfo);
 		}
 	}
 	
@@ -106,10 +124,52 @@ float APFCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 
 void APFCharacterBase::ModifyDamage(float DamageAmount, AActor* InInstigator)
 {
-	return;
+	if (HealthComponent->GetHealth() <= 0.0f)
+	{
+		StartDeadCharacter();
+	}
 }
 
-void APFCharacterBase::SuccessGuardCounter(AActor* InInstigator)
+void APFCharacterBase::StartDeadCharacter()
+{
+	CombatStateComponent->ChangeState(ECombatState::Dead);
+	
+	UGameInstance* GameInstance = GetGameInstance();
+	if (!GameInstance) return;
+	
+	UPFGameInstance* PFGameInstance = Cast<UPFGameInstance>(GameInstance);
+	if (!PFGameInstance) return ;
+	
+	UAnimManager* AnimManager = PFGameInstance->GetAnimManager();
+	if (!AnimManager) return;
+	
+	UAnimMontage* DeadMontage = AnimManager->GetDead(ID);
+	GetMesh()->GetAnimInstance()->Montage_Play(DeadMontage);
+	
+	UnPossessed();
+
+	this->GetCharacterMovement()->bRunPhysicsWithNoController = true;
+}
+
+void APFCharacterBase::InitCharacterStatus()
+{
+	UGameInstance* GameInstance = GetGameInstance();
+	if (!GameInstance) return;
+	
+	UPFGameInstance* PFGameInstance = Cast<UPFGameInstance>(GameInstance);
+	if (!PFGameInstance) return ;
+
+	UResourceManager* ResourceManager = PFGameInstance->GetResourceManager();
+	if (!ResourceManager) return;
+
+	const FCharacterStatusTableRow* CharacterStatusTableRow = ResourceManager->GetCharacterStatusTableRow(ID);
+	if (!CharacterStatusTableRow) return;
+	
+	HealthComponent->InitHealth(CharacterStatusTableRow->MaxHealth);
+	StaminaComponent->InitStamina(CharacterStatusTableRow->MaxStamina);
+}
+
+void APFCharacterBase::SuccessParry(AActor* InInstigator)
 {
 	return;
 }
@@ -127,6 +187,11 @@ void APFCharacterBase::SuccessAbilityCounter()
 void APFCharacterBase::ResetParryInvincible()
 {
 	bParrySuccess = false;
+}
+
+bool APFCharacterBase::CanRegenerateStamina() const
+{
+	return true;
 }
 
 void APFCharacterBase::SetCanAttack(bool bInCanAttack)
@@ -208,7 +273,7 @@ bool APFCharacterBase::TryAttack()
 	return false;
 }
 
-void APFCharacterBase::AttackHold(float HoldTime)
+void APFCharacterBase::StrongAttackHold(float HoldTime)
 {
 	if (ChargeHoldTime <= HoldTime)
     {
@@ -270,10 +335,8 @@ bool APFCharacterBase::IsWeaopnAttachedHand()
 	{
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	
+	return false;
 }
 
 void APFCharacterBase::EquipWeapon(bool bEquip)
@@ -314,6 +377,8 @@ void APFCharacterBase::InterruptAction()
 
 void APFCharacterBase::RollCharacter(ECharacterDirection Direction)
 {
+	if (StaminaComponent->GetCurrentStamina() <= 0) return;
+	
 	UGameInstance* GameInstance = GetGameInstance();
 	if (!GameInstance) return;
 	
@@ -332,8 +397,8 @@ void APFCharacterBase::RollCharacter(ECharacterDirection Direction)
 		if (RollMontage)
 		{
 			ChangeState(ECombatState::Dodging);
-			
 			GetMesh()->GetAnimInstance()->Montage_Play(RollMontage);
+			StaminaComponent->AddStamina(-20.f);
 		}
 	}
 }

@@ -12,7 +12,10 @@ void UDialogueChoiceButton::InitChoiceButton(FDialogueChoiceInfo& DialogueChoice
 	CurrentDialogueChoice = DialogueChoice;
 	Choice_Text->SetText(CurrentDialogueChoice.ChoiceDisplayText);
 
-	Choice_Button->OnClicked.AddDynamic(this, &UDialogueChoiceButton::OnButtonClicked);
+	if (!Choice_Button->OnClicked.IsAlreadyBound(this, &UDialogueChoiceButton::OnButtonClicked))
+	{
+		Choice_Button->OnClicked.AddDynamic(this, &UDialogueChoiceButton::OnButtonClicked);	
+	}
 }
 
 void UDialogueChoiceButton::OnButtonClicked()

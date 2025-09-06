@@ -12,3 +12,14 @@ UWorld* UPFFunctionLibrary::GetActorWorld(const AActor* Actor)
 	
 	return Actor->GetWorld();
 }
+
+bool UPFFunctionLibrary::IsInGame(const UWorld* World)
+{
+	if (World)
+	{
+		return !World->bIsTearingDown;
+		//return World->IsGameWorld();
+	}
+	
+	return false;
+}

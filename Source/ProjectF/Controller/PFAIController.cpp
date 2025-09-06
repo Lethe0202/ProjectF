@@ -50,9 +50,7 @@ void APFAIController::Tick(float DeltaTime)
 }
 
 void APFAIController::StartTree()
-{	
-	PFOwnerCharacter = Cast<APFCharacterBase>(GetOwner());
-
+{
 	if (IsValid(PFOwnerCharacter))
 	{
 		if (APFAICharacter* PFAICharacter = Cast<APFAICharacter>(PFOwnerCharacter))
@@ -72,18 +70,20 @@ void APFAIController::OnPossess(APawn* InPawn)
 	
 	PFOwnerCharacter = Cast<APFCharacterBase>(InPawn);
 
-	if (IsValid(PFOwnerCharacter))
+	if (!IsValid(PFOwnerCharacter)) return;
+
+	if (APFAICharacter* PFAICharacter = Cast<APFAICharacter>(PFOwnerCharacter))
 	{
-		if (APFAICharacter* PFAICharacter = Cast<APFAICharacter>(PFOwnerCharacter))
+		if (PFAICharacter->GetAutoStartBT())
 		{
 			if (PFAICharacter->GetBT() != nullptr)
 			{
 				Blackboard->InitializeBlackboard(*(PFAICharacter->GetBT())->BlackboardAsset);
 				BehaviorTreeComponent->StartTree(*(PFAICharacter->GetBT()));
 			}
-
-			TeamId = PFAICharacter->GetGenericTeamId();
 		}
+		
+		TeamId = PFAICharacter->GetGenericTeamId();
 	}
 }
 

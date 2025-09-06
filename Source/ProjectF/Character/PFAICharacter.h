@@ -27,7 +27,7 @@ public:
 	// ~Interactable Interface
 
 	virtual void StopLogic(FString Reason) override;
-
+	
 	/*
 	 * Combat
 	 */
@@ -36,6 +36,7 @@ public:
 	
 protected:
 	virtual void BeginPlay() override;
+	virtual void StartDeadCharacter() override;
 
 	virtual float ApplyStamina(float InStamina) override;
 	
@@ -47,10 +48,19 @@ protected:
 public:
 	UBehaviorTree* const GetBT() const { return (BehaviorTree != nullptr ? BehaviorTree : nullptr); }
 	virtual AActor* GetTarget() const;
+	bool GetAutoStartBT() const { return bAutoStartBT; }
 
+	FName GetSpawnID() const { return SpawnID; }
+	void SetSpawnID(FName InSpawnID) { SpawnID = InSpawnID; }
+
+	void SetVisibleStatusWidget(bool bVisible);
+	
 	FExecutionCooldownSignature ExecutionCooldownDelegate;
 	
 protected:
+	UPROPERTY(EditAnywhere, meta = (AllowPrivateAccess = "true"))
+	bool bAutoStartBT = true;
+	
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UBehaviorTree> BehaviorTree;
 
@@ -59,11 +69,17 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	TObjectPtr<UWidgetComponent> ExecutionWidgetComponent;
-
+	
 	/*
 	 * Execution
 	 */
 	FTimerHandle ExecutionCooldownTimer;
 	float ExecutionCooldownStartTime;
 	bool bExecuted = false;
+
+	/*
+	 * Unique
+	 */
+	FName SpawnID;
+	FTransform SpawnTransform;
 };

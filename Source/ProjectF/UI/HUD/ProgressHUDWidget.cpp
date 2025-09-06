@@ -5,7 +5,7 @@
 
 #include "Components/ProgressBar.h"
 
-void UProgressHUDWidget::OnProgressChanged(float OldValue, float NewValue, float MaxValue, AActor* Instigator)
+void UProgressHUDWidget::OnProgressChanged_Implementation(float OldValue, float NewValue, float MaxValue, AActor* Instigator)
 {
 	ProgressBar->SetPercent(NewValue / MaxValue);
 }

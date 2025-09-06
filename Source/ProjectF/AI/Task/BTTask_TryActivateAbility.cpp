@@ -32,10 +32,6 @@ EBTNodeResult::Type UBTTask_TryActivateAbility::ExecuteTask(UBehaviorTreeCompone
 			Memory->PFCharacterBase->ChangeState(ECombatState::Attacking);
 			return EBTNodeResult::InProgress;
 		}
-		else
-		{
-			return EBTNodeResult::Failed;
-		}
 	}
 	
 	return EBTNodeResult::Failed;

@@ -3,6 +3,8 @@
 
 #include "StaminaComponent.h"
 
+#include "Kismet/GameplayStatics.h"
+
 UStaminaComponent::UStaminaComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
@@ -13,6 +15,26 @@ void UStaminaComponent::BeginPlay()
 	Super::BeginPlay();
 
 	CurrentStamina = MaxStamina;
+}
+
+void UStaminaComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	if (bAutoRecovery)
+	{
+		if (CanRegenCondition.IsBound())
+		{
+			if (CanRegenCondition.Execute())
+			{
+				UpdateStamina(AutoRecoveryValue * DeltaTime * UGameplayStatics::GetGlobalTimeDilation(GetWorld()));		
+			}
+		}
+		else
+		{
+			UpdateStamina(AutoRecoveryValue * DeltaTime);
+		}
+	}
 }
 
 void UStaminaComponent::UpdateStamina(float InValue)
@@ -39,15 +61,26 @@ void UStaminaComponent::UpdateStamina(float InValue)
 			{
 				OnStaminaChanged.Broadcast(OldValue, CurrentStamina, MaxStamina, nullptr);
 			}
+			
+			if (CurrentStamina <= 0)
+			{
+				bAutoRecovery = false;
+				GetWorld()->GetTimerManager().SetTimer(AutoRecoveryTimerHandle, this, &ThisClass::HandleRestartAutoRecovery, 3.0f, false);
+			}
 		}
 	}
 }
 
-void UStaminaComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+void UStaminaComponent::HandleRestartAutoRecovery()
 {
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	bAutoRecovery = true;
+	UpdateStamina(MaxStamina);
+}
 
-	UpdateStamina(AutoRecoveryValue * DeltaTime);
+void UStaminaComponent::InitStamina(float InMaxStamina)
+{
+	MaxStamina = InMaxStamina;
+	CurrentStamina = MaxStamina;
 }
 
 void UStaminaComponent::AddStamina(float InValue)

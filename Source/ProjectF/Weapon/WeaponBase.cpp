@@ -14,18 +14,15 @@
 #include "ProjectF/Character/PFCharacterBase.h"
 #include "ProjectF/Character/Component/AbilityComponent.h"
 #include "ProjectF/Character/Component/CombatStateComponent.h"
-#include "ProjectF/Character/State/ICombatState.h"
 #include "ProjectF/Manager/AnimManager.h"
 #include "ProjectF/Manager/PFGameInstance.h"
+#include "Sound/SoundCue.h"
 
 AWeaponBase::AWeaponBase()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
 	SkeletalMeshComponent = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("SkeletalMeshComponent"));
-
-	WeaponChargeParticle = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("WeaponChargeParticle"));
-	WeaponChargeParticle->SetupAttachment(SkeletalMeshComponent);
 }
 
 void AWeaponBase::BeginPlay()
@@ -65,6 +62,11 @@ void AWeaponBase::BeginPlay()
 			PFCharacterBase->GetAbilityComponent()->RegisterAbility(LaunchAttackAbility);
 		}
 	}
+
+	if (SkeletalMeshComponent)
+	{
+		WeaponDynamicMaterial = SkeletalMeshComponent->CreateDynamicMaterialInstance(0);	
+	}
 }
 
 void AWeaponBase::OnWeaponBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
@@ -87,9 +89,24 @@ void AWeaponBase::OnWeaponBeginOverlap(UPrimitiveComponent* OverlappedComponent,
 	
 	UPFGameInstance* PFGameInstance = Cast<UPFGameInstance>(GetGameInstance());
 	if (!PFGameInstance) return;
+
+	if (HitCharacters.Contains(OtherActor)) return;
 	
 	FVector HitLocation;
-	OtherCharacter->GetMesh()->GetClosestPointOnCollision(GetActorLocation(), HitLocation);
+	HitLocation = OtherCharacter->GetMesh()->Bounds.GetBox().GetClosestPointTo(GetActorLocation());
+
+	FHitResult OtherHitResult = SweepResult;
+	
+	UPrimitiveComponent* Comp = OtherActor->GetComponentByClass<UPrimitiveComponent>();
+	if (Comp && Comp->GetBodyInstance())
+	{
+		UPhysicalMaterial* PhysMat = Comp->GetBodyInstance()->GetSimplePhysicalMaterial();
+		if (PhysMat)
+		{
+			EPhysicalSurface SurfaceType = UPhysicalMaterial::DetermineSurfaceType(PhysMat);
+			OtherHitResult.PhysMaterial = MakeWeakObjectPtr(PhysMat);
+		}
+	}
 	
 	if (!OtherCharacter->GetCombatStateComponent()->GetInvincible())
 	{
@@ -123,7 +140,7 @@ void AWeaponBase::OnWeaponBeginOverlap(UPrimitiveComponent* OverlappedComponent,
 			ECC_Visibility,
 			ParamsTarget
 		);
-
+		
 		// 점프 공격
 		if (OtherCharacter->GetCharacterMovement()->MovementMode == MOVE_Falling && !bHitTarget)
 		{
@@ -132,10 +149,12 @@ void AWeaponBase::OnWeaponBeginOverlap(UPrimitiveComponent* OverlappedComponent,
 			
 			for (const UEffectType* EffectType : JumpAttackDataAsset->EffectContainer[CurrentEffectIndex].Effect)
 			{
-				FTransform EffectTransform;
+				FEffectInfo EffectInfo;
+				EffectInfo.EffectTransform.SetLocation(HitLocation);
+				EffectInfo.Hit = OtherHitResult;
+				EffectType->ApplyEffect(OtherCharacter, Owner.Get(), EffectInfo, JumpAttackDataAsset->EffectContainer[CurrentEffectIndex].bStrongEffect);
 				
-				EffectTransform.SetLocation(HitLocation);
-				EffectType->ApplyEffect(OtherCharacter, Owner.Get(), EffectTransform, JumpAttackDataAsset->EffectContainer[CurrentEffectIndex].bStrongEffect);
+				OtherCharacter->GetCharacterMovement()->GravityScale = 0.1f;
 			}
 		}
 		else // 지상공격
@@ -147,24 +166,25 @@ void AWeaponBase::OnWeaponBeginOverlap(UPrimitiveComponent* OverlappedComponent,
 				{
 					for (const UEffectType* EffectType : PrimaryAttackDataAsset->EffectContainer[CurrentEffectIndex].Effect)
 					{
-						FTransform EffectTransform;
-					
-						EffectTransform.SetLocation(HitLocation);
-						EffectType->ApplyEffect(OtherCharacter, Owner.Get(), EffectTransform, PrimaryAttackDataAsset->EffectContainer[CurrentEffectIndex].bStrongEffect);
+						FEffectInfo EffectInfo;
+						EffectInfo.EffectTransform.SetLocation(HitLocation);
+						EffectInfo.Hit = OtherHitResult;
+						EffectType->ApplyEffect(OtherCharacter, Owner.Get(), EffectInfo, PrimaryAttackDataAsset->EffectContainer[CurrentEffectIndex].bStrongEffect);
 					}
 				}
 			}
 			else if (CurrentWeaponAttackType == EWeaponAttackType::Strong)
 			{
 				if (StrongAttackDataAsset == nullptr) return;
+				
 				if (StrongAttackDataAsset->EffectContainer.IsValidIndex(CurrentEffectIndex))
 				{
 					for (const UEffectType* EffectType : StrongAttackDataAsset->EffectContainer[CurrentEffectIndex].Effect)
 					{
-						FTransform EffectTransform;
-					
-						EffectTransform.SetLocation(HitLocation);
-						EffectType->ApplyEffect(OtherCharacter, Owner.Get(), EffectTransform, StrongAttackDataAsset->EffectContainer[CurrentEffectIndex].bStrongEffect);
+						FEffectInfo EffectInfo;
+						EffectInfo.EffectTransform.SetLocation(HitLocation);
+						EffectInfo.Hit = OtherHitResult;
+						EffectType->ApplyEffect(OtherCharacter, Owner.Get(), EffectInfo, StrongAttackDataAsset->EffectContainer[CurrentEffectIndex].bStrongEffect);
 					}
 				}
 			}
@@ -177,7 +197,9 @@ void AWeaponBase::OnWeaponBeginOverlap(UPrimitiveComponent* OverlappedComponent,
 void AWeaponBase::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
+	
+	if (!Owner) return;
+			
 	EMovementMode MovementMode = Cast<ACharacter>(Owner)->GetCharacterMovement()->MovementMode;
 	if (MovementMode == MOVE_Walking)
 	{
@@ -193,37 +215,30 @@ void AWeaponBase::Tick(float DeltaTime)
 			bCanChargeAttack = true;
 		}
 	}
-
-	if (ShapeComponent)
-	{
-		if (ShapeComponent->IsCollisionEnabled())
-		{
-			ShapeComponent->SetVisibility(true);	
-		}
-		else
-		{
-			ShapeComponent->SetVisibility(false);
-		}
-	}
 }
 
 void AWeaponBase::SetChargeEffect(bool bCharge)
 {
+	float EmissivePow = 0;
+	
 	if (bCharge)
 	{
-		if (!WeaponChargeParticle->IsActive())
+		if (WeaponDynamicMaterial)
 		{
-			WeaponChargeParticle->Activate(true);
+			EmissivePow = 5.0f;
 		}
 	}
-	else
-	{
-		WeaponChargeParticle->Deactivate();
-	}
+	
+	WeaponDynamicMaterial->SetScalarParameterValue("Emissive_pow", EmissivePow);
 }
 
 void AWeaponBase::ActivateWeaponCollision(bool bCollision, int EffectIndex)
 {
+	for (auto& Character : HitCharacters)
+	{
+		Character->GetCharacterMovement()->GravityScale = 1.5f;
+	}
+	
 	if (bCollision)
 	{
 		HitCharacters.Empty();
@@ -391,7 +406,7 @@ void AWeaponBase::SaveAttack()
 
 void AWeaponBase::ResetAttack()
 {
-	CurrentWeaponAttackType = EWeaponAttackType::None;
+	CurrentWeaponAttackType = EWeaponAttackType::Primary;
 	AttackCnt = 0;
 	StrongAttackCnt = 0;
 	bStrongAttack = false;
@@ -404,11 +419,6 @@ void AWeaponBase::ResetAttack()
 		{
 			Character->GetCharacterMovement()->GravityScale = 1.5f;
 		}
-	}
-	
-	for (auto& Character : HitCharacters)
-	{
-		Character->GetCharacterMovement()->GravityScale = 1.5f;
 	}
 }
 

@@ -1,0 +1,4 @@
+﻿#define ECC_InteractTrigger ECC_GameTraceChannel1
+#define ECC_ClimbUp ECC_GameTraceChannel2
+#define ECC_CharacterMesh ECC_GameTraceChannel3
+#define ECC_Weapon ECC_GameTraceChannel4
