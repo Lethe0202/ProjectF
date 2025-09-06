@@ -34,7 +34,6 @@ float APFBossCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const
 		if (BossPhaseDataAsset)
 		{
 			ALevelSequenceActor* SequenceActor;
-			FMovieSceneSequencePlaybackSettings SceneSequencePlaybackSettings;
 			LevelSequencePlayer = ULevelSequencePlayer::CreateLevelSequencePlayer(GetWorld(), BossPhaseDataAsset->PhaseChangeSequence, BossPhaseDataAsset->SceneSequencePlaybackSettings, SequenceActor);
 			
 			LevelSequencePlayer->Play();

@@ -8,7 +8,7 @@ public class ProjectF : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "AIModule", "Niagara", "UMG"} );
-		PrivateDependencyModuleNames.AddRange(new string[] { "LevelSequence", "MovieScene" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "AIModule", "Niagara", "UMG", "MoviePlayer", "PhysicsCore" } );
+		PrivateDependencyModuleNames.AddRange(new string[] { "LevelSequence", "MovieScene"});
 	}
 }

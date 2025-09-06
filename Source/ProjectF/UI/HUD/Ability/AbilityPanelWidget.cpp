@@ -3,9 +3,10 @@
 
 #include "AbilityPanelWidget.h"
 
-#include "CooldownSlotWidget.h"
 #include "ProjectF/Ability/AbilityBase.h"
+#include "ProjectF/Ability/DataAsset/UISlotDataAsset.h"
 #include "ProjectF/Character/Component/AbilityComponent.h"
+#include "ProjectF/UI/HUD/Slot/CooldownSlotWidget.h"
 
 void UAbilityPanelWidget::InitializeAbilitySlot(UAbilityComponent* AbilityComponent)
 {
@@ -17,7 +18,7 @@ void UAbilityPanelWidget::InitializeAbilitySlot(UAbilityComponent* AbilityCompon
 		UAbilityDataAsset* AbilityDataAsset = AbilityBase->GetAbilityDataAsset();
 		if (!AbilityDataAsset) continue;
 		
-		UAbilityUIDataAsset* AbilityUIDataAsset= AbilityDataAsset->AbilityUIDataAsset;
+		UUISlotDataAsset* AbilityUIDataAsset= AbilityDataAsset->AbilityUIDataAsset;
 		if (!AbilityUIDataAsset) continue;
 		
 		AbilitySlots[i]->SetIconImage(AbilityUIDataAsset->Icon);

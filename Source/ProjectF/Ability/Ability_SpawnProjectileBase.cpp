@@ -3,8 +3,10 @@
 
 #include "Ability_SpawnProjectileBase.h"
 
+#include "KismetTraceUtils.h"
 #include "GameFramework/Character.h"
 #include "ProjectF/Common/CombatTypes.h"
+#include "ProjectF/Common/PFCollisionChannel.h"
 #include "Projectile/ProjectileBase.h"
 
 class UEffectType;
@@ -12,43 +14,123 @@ class UEffectType;
 void UAbility_SpawnProjectileBase::AbilityEffect(int Index)
 {
 	Super::AbilityEffect(Index);
-
+	
 	if (Index == 0)
 	{
-		FTransform SpawnTransform;
-		SpawnTransform.SetLocation(Owner->GetActorLocation());
-		SpawnTransform.SetRotation(Owner->GetActorRotation().Quaternion());
-		
-		if (ACharacter* OwnerCharacter = Cast<ACharacter>(Owner))
+		AProjectileBase* ProjectileBase = SpawnProjectile();
+		if (ProjectileBase)
 		{
-			FVector SocketLocation = OwnerCharacter->GetMesh()->GetSocketLocation(SpawnSocketName);
-			if (!SocketLocation.IsZero())
+			UPrimitiveComponent* RootPrim = Cast<UPrimitiveComponent>(ProjectileBase->GetRootComponent());
+			/*if(RootPrim)
 			{
-				SpawnTransform.SetLocation(SocketLocation); 
-			}
+				RootPrim->SetMobility(EComponentMobility::Movable);
+				RootPrim->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+				RootPrim->SetCollisionResponseToAllChannels(ECR_Overlap);
+			}*/
+			
+			ProjectileBase->SetInstigator(Owner.Get()->GetInstigator());
+			ProjectileBase->OnProjectileEffect.AddDynamic(this, &UAbility_SpawnProjectileBase::OnHit);
 		}
-		
-		FActorSpawnParameters SpawnParams;
-		SpawnParams.Owner = Owner.Get();
-		
-		AProjectileBase* ProjectileBase = Owner->GetWorld()->SpawnActor<AProjectileBase>(ProjectileClass, SpawnTransform, SpawnParams);
-		ProjectileBase->SetInstigator(Owner.Get()->GetInstigator());
-		ProjectileBase->OnProjectileEffect.AddDynamic(this, &UAbility_SpawnProjectileBase::OnHit);
 	}
+}
+
+AProjectileBase* UAbility_SpawnProjectileBase::SpawnProjectile()
+{
+	if (!ProjectileClass) return nullptr;
+	
+	FTransform SpawnTransform;
+	SpawnTransform.SetLocation(Owner->GetActorLocation());
+	SpawnTransform.SetRotation(Owner->GetActorRotation().Quaternion());
+	
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = Owner.Get();
+	
+	if (ACharacter* OwnerCharacter = Cast<ACharacter>(Owner))
+	{
+		FVector SocketLocation = OwnerCharacter->GetMesh()->GetSocketLocation(SpawnSocketName);
+		if (!SocketLocation.IsZero())
+		{
+			SpawnTransform.SetLocation(SocketLocation);
+		}
+	}
+	
+	return Owner->GetWorld()->SpawnActor<AProjectileBase>(ProjectileClass, SpawnTransform, SpawnParams);
 }
 
 void UAbility_SpawnProjectileBase::OnHit_Implementation(AActor* SelfActor, AActor* OtherActor, const FHitResult& Hit)
 {
-	if (!AbilityDataAsset->EffectContainer.IsValidIndex(0)) return;
+	if (!AbilityDataAsset->EffectContainer.IsValidIndex(1)) return;
 	
-	const TArray<TObjectPtr<UEffectType>>& Effects = AbilityDataAsset->EffectContainer[0].Effect;
+	switch (ProjectileHitType)
+	{
+	case EProjectileHitType::Single:
+		ApplySingleEffect(SelfActor, OtherActor, Hit);
+		break;
+	case EProjectileHitType::Range:
+		ApplyRangeEffect(SelfActor, OtherActor, Hit);
+		break;
+	}
+}
+
+void UAbility_SpawnProjectileBase::ApplySingleEffect(AActor* SelfActor, AActor* OtherActor, const FHitResult& Hit)
+{
+	const TArray<TObjectPtr<UEffectType>>& Effects = AbilityDataAsset->EffectContainer[1].Effect;
 	for (int i = 0; i < Effects.Num(); ++i)
 	{
-		FTransform EffectTransform;
-		EffectTransform.SetLocation(Hit.ImpactPoint);
+		FEffectInfo EffectInfo;
+		EffectInfo.Hit = Hit;
+		EffectInfo.EffectTransform.SetLocation(Hit.ImpactPoint);
 		
-		Effects[i]->ApplyEffect(OtherActor, SelfActor, EffectTransform, AbilityDataAsset->EffectContainer[0].bStrongEffect);
-		
+		Effects[i]->ApplyEffect(OtherActor, SelfActor, EffectInfo, AbilityDataAsset->EffectContainer[0].bStrongEffect);
+			
 		SelfActor->Destroy();
 	}
+}
+
+void UAbility_SpawnProjectileBase::ApplyRangeEffect(AActor* SelfActor, AActor* OtherActor, const FHitResult& Hit)
+{
+	TArray<FHitResult> Results;
+	
+	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypeQuery;
+	ObjectTypeQuery.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
+	
+	TArray<FHitResult> emptyResult;
+	
+	//DrawDebugSphereTraceMulti(SelfActor->GetWorld(), SelfActor->GetActorLocation(), SelfActor->GetActorLocation(), ProjectileHitRadius, EDrawDebugTrace::ForDuration, false, emptyResult, FColor::Red, FColor::Green, 3.f);
+	
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(MyTrace), false);
+	QueryParams.AddIgnoredActor(SelfActor);
+
+	if (SelfActor->Owner)
+	{
+		QueryParams.AddIgnoredActor(SelfActor->Owner);
+	}
+	
+	bool bHit = SelfActor->GetWorld()->SweepMultiByObjectType(
+		Results,
+		SelfActor->GetActorLocation(),
+		SelfActor->GetActorLocation(),
+		FQuat::Identity,
+		ObjectTypeQuery,
+		FCollisionShape::MakeSphere(ProjectileHitRadius),
+		QueryParams
+	);
+	
+	if (bHit)
+	{
+		const TArray<TObjectPtr<UEffectType>>& Effects = AbilityDataAsset->EffectContainer[1].Effect;
+		for (int i = 0; i < Effects.Num(); ++i)
+		{
+			for (auto& HitResult : Results)
+			{
+				FEffectInfo EffectInfo;
+				EffectInfo.Hit = HitResult;
+				EffectInfo.EffectTransform.SetLocation(HitResult.ImpactPoint);
+				
+				Effects[i]->ApplyEffect(OtherActor, SelfActor, EffectInfo, AbilityDataAsset->EffectContainer[1].bStrongEffect);
+			}
+		}
+	}
+
+	SelfActor->Destroy();
 }

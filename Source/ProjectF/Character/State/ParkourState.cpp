@@ -37,9 +37,8 @@ void ParkourState::Exit(UCombatStateComponent* CombatComponent)
 bool ParkourState::CanChangeState(ECombatState CharacterStateType)
 {
 	bool bCanChangeState = false;
-
+	
 	bCanChangeState |= CharacterStateType == ECombatState::Idle;
-	bCanChangeState |= CharacterStateType == ECombatState::Stun;
 	
 	return bCanChangeState;
 }

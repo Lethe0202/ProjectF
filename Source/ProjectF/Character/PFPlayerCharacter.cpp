@@ -5,6 +5,7 @@
 
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "PFAICharacter.h"
 #include "Camera/CameraComponent.h"
 #include "Component/CombatStateComponent.h"
 #include "Component/HealthComponent.h"
@@ -13,13 +14,15 @@
 #include "Components/WidgetComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
-#include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "ProjectF/Ability/AbilityBase.h"
 
 #include "ProjectF/Player/TargetingComponent.h"
 #include "ProjectF/Character/Component/AbilityComponent.h"
+#include "ProjectF/Common/PFCollisionChannel.h"
+#include "ProjectF/Controller/PFPlayerController.h"
 #include "ProjectF/Interaction/Interactable.h"
+#include "ProjectF/Manager/PFGameInstance.h"
 #include "ProjectF/Weapon/WeaponBase.h"
 
 class UEnhancedInputLocalPlayerSubsystem;
@@ -45,7 +48,7 @@ APFPlayerCharacter::APFPlayerCharacter()
 	
 	GetCharacterMovement()->bOrientRotationToMovement = true;	
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f);
-
+	
 	InteractionSphereComponent = CreateDefaultSubobject<USphereComponent>(TEXT("InteractionSphereComponent"));
 	InteractionSphereComponent->SetupAttachment(RootComponent);
 	InteractionSphereComponent->InitSphereRadius(300.f);
@@ -55,11 +58,30 @@ APFPlayerCharacter::APFPlayerCharacter()
 
 	ExecutionInteractionWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("ExecutionInteractionWidgetComponent"));
 	ExecutionInteractionWidgetComponent->SetVisibility(false);
+	
+	AroundActorTriggerComponent = CreateDefaultSubobject<USphereComponent>(TEXT("AroundActorTriggerComponent"));
+	AroundActorTriggerComponent->SetupAttachment(RootComponent);
+	AroundActorTriggerComponent->InitSphereRadius(1000.f);
+
+	AroundActorTriggerComponent->OnComponentBeginOverlap.AddDynamic(this, &APFPlayerCharacter::HandleAroundActorTriggerBeginOverlap);
+	AroundActorTriggerComponent->OnComponentEndOverlap.AddDynamic(this, &APFPlayerCharacter::HandleAroundActorTriggerEndOverlap);
 }
 
 void APFPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	CurrentHealthItemCnt = MaxHealthItemCnt;
+	
+	UGameInstance* GameInstance = GetGameInstance();
+	if (GameInstance)
+	{
+		UPFGameInstance* PFGameInstance = Cast<UPFGameInstance>(GameInstance);
+		if (PFGameInstance)
+		{
+			PFGameInstance->ReadyPlayerCharacter(this);
+		}
+	}
 	
 	AbilityInputDataMap.Add(0, FAbilityInputData());
 	AbilityInputDataMap.Add(1, FAbilityInputData());
@@ -73,11 +95,34 @@ void APFPlayerCharacter::BeginPlay()
 	}
 
 	GetWorld()->GetTimerManager().SetTimer(ExecutionTimerHandle, this, &APFPlayerCharacter::HandleExecutionCollisionTimer, 0.1f, true);
+	
+	OnUpdateItemCnt.Broadcast(CurrentHealthItemCnt);
+}
+
+void APFPlayerCharacter::StartDeadCharacter()
+{
+	APFPlayerController* PFPlayerController= Cast<APFPlayerController>(Controller);
+	if (PFPlayerController)
+	{
+		PFPlayerController->ShowGameOverUI();
+	}
+
+	if (TargetingComponent->IsActivateTargeting())
+	{
+		TargetingComponent->ToggleTargeting();
+	}
+	
+	Super::StartDeadCharacter();
 }
 
 void APFPlayerCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	if (bUpdateTargeting)
+	{
+		TargetingComponent->UpdateLockOnCamera();
+	}
 }
 
 void APFPlayerCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
@@ -195,7 +240,6 @@ void APFPlayerCharacter::Input_Roll(const FInputActionValue& Value)
 	}
 	
 	RollCharacter(CharacterDirection);
-	//GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Roll: %f"), Angle));
 }
 
 void APFPlayerCharacter::Input_Jump(const FInputActionValue& Value)
@@ -223,8 +267,9 @@ void APFPlayerCharacter::Input_StrongAttack(const FInputActionValue& Value)
 		if (ChangeState(ECombatState::Attacking))
 		{
 			GetMesh()->GetAnimInstance()->Montage_Play(GuardCounterMontage);
-			
 			GetWorld()->GetTimerManager().ClearTimer(GuardCounterAttackTimerHandle);
+			StaminaComponent->AddStamina(-20.f);
+			
 			bCanGuardCounterAttack = false;
 		}
 	}
@@ -237,11 +282,13 @@ void APFPlayerCharacter::Input_StrongAttack(const FInputActionValue& Value)
 void APFPlayerCharacter::Input_AttackHold(const FInputActionValue& Value)
 {
 	AttackHoldTime += GetWorld()->GetDeltaSeconds();
-	AttackHold(AttackHoldTime);
+	StrongAttackHold(AttackHoldTime);
 }
 
 void APFPlayerCharacter::Input_AttackHoldStop(const FInputActionValue& Value)
 {
+	if (StaminaComponent->GetCurrentStamina() <= 0.f) return;
+	
 	bool bSuccessAttackHold = TryAttackHold(AttackHoldTime);
 	if (bSuccessAttackHold)
 	{
@@ -317,9 +364,9 @@ void APFPlayerCharacter::Input_Execution(const FInputActionValue& Value)
 	
 	if (ExecutionMontage)
 	{
-		if (TargetingComponent->GetTarget())
+		if (TargetingComponent->IsActivateTargeting())
 		{
-			TargetingComponent->SetTarget(ExecutionTargetCharacter);	
+			TargetingComponent->ToggleTargeting();
 		}
 		
 		bPlayExecution = true;
@@ -336,18 +383,20 @@ void APFPlayerCharacter::Input_Execution(const FInputActionValue& Value)
 
 void APFPlayerCharacter::Input_Heal()
 {
-	if (GetWorld()->GetTimerManager().IsTimerActive(HealingCooldownTimerHandle)) return;
-
+	if (CurrentHealthItemCnt <= 0) return;
+	//if (GetWorld()->GetTimerManager().IsTimerActive(HealingCooldownTimerHandle)) return;
+	
 	if (CombatStateComponent->GetCurrentState() != ECombatState::Idle) return;
 	
-	if (HealthComponent)
+	if (!HealthComponent) return;
+	
+	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
 	{
-		if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+		if (AnimInstance->GetCurrentActiveMontage()) return;
+			
+		if (HealingMontage)
 		{
-			if (HealingMontage)
-			{
-				AnimInstance->Montage_Play(HealingMontage, 1.0f); // 1.0f는 재생 속도
-			}
+			AnimInstance->Montage_Play(HealingMontage, 1.0f); // 1.0f는 재생 속도
 		}
 	}
 }
@@ -355,8 +404,15 @@ void APFPlayerCharacter::Input_Heal()
 void APFPlayerCharacter::ApplyHeal()
 {
 	HealthComponent->ApplyHeal(HealingItemAmount);
-	PotionCooldownStartTime = GetWorld()->GetTimeSeconds();
-	GetWorld()->GetTimerManager().SetTimer(HealingCooldownTimerHandle, this, &ThisClass::HandleUpdatePotionCooldown, GetWorld()->GetDeltaSeconds(), true);
+	
+	--CurrentHealthItemCnt;
+	OnUpdateItemCnt.Broadcast(CurrentHealthItemCnt);
+
+	if (GetWorld()->GetTimerManager().IsTimerActive(HealingCooldownTimerHandle) == false)
+	{
+		PotionCooldownStartTime = GetWorld()->GetTimeSeconds();
+		GetWorld()->GetTimerManager().SetTimer(HealingCooldownTimerHandle, this, &ThisClass::HandleUpdatePotionCooldown, GetWorld()->GetDeltaSeconds(), true);
+	}
 }
 
 float APFPlayerCharacter::ApplyStamina(float InStamina)
@@ -370,7 +426,7 @@ void APFPlayerCharacter::ModifyDamage(float DamageAmount, AActor* InInstigator)
 	{
 		if (CombatStateComponent->IsGuardCounter())
 		{
-			SuccessGuardCounter(InInstigator);
+			SuccessParry(InInstigator);
 		}
 		else
 		{
@@ -381,6 +437,26 @@ void APFPlayerCharacter::ModifyDamage(float DamageAmount, AActor* InInstigator)
 	{
 		HealthComponent->ApplyDamage(DamageAmount, InInstigator);
 	}
+
+	Super::ModifyDamage(DamageAmount, InInstigator);
+}
+
+void APFPlayerCharacter::AddHealthItemCnt(int InCnt)
+{
+	MaxHealthItemCnt += InCnt;
+	CurrentHealthItemCnt += InCnt;
+
+	OnUpdateItemCnt.Broadcast(CurrentHealthItemCnt);
+}
+
+void APFPlayerCharacter::SetMaxHealthItemCnt(int InCnt)
+{
+	MaxHealthItemCnt = InCnt;
+}
+
+void APFPlayerCharacter::SetCurrentHealthItemCnt(int InCnt)
+{
+	CurrentHealthItemCnt = InCnt;
 }
 
 void APFPlayerCharacter::HandleUpdatePotionCooldown()
@@ -389,15 +465,23 @@ void APFPlayerCharacter::HandleUpdatePotionCooldown()
 
 	if (ElapsedTime >= HealingItemCooldown)
 	{
+		++CurrentHealthItemCnt;
+		OnUpdateItemCnt.Broadcast(CurrentHealthItemCnt);
 		GetWorld()->GetTimerManager().ClearTimer(HealingCooldownTimerHandle);
+		
+		if (CurrentHealthItemCnt < MaxHealthItemCnt)
+		{
+			PotionCooldownStartTime = GetWorld()->GetTimeSeconds();
+			GetWorld()->GetTimerManager().SetTimer(HealingCooldownTimerHandle, this, &ThisClass::HandleUpdatePotionCooldown, GetWorld()->GetDeltaSeconds(), true);
+		}
 	}
 	
 	OnUpdatePotionCooldown.Broadcast(HealingItemCooldown, ElapsedTime);
 }
 
-void APFPlayerCharacter::SuccessGuardCounter(AActor* InInstigator)
+void APFPlayerCharacter::SuccessParry(AActor* InInstigator)
 {
-	Super::SuccessGuardCounter(InInstigator);
+	Super::SuccessParry(InInstigator);
 	
 	bParrySuccess = true;
 	
@@ -423,7 +507,15 @@ void APFPlayerCharacter::SuccessGuardCounter(AActor* InInstigator)
 		},
 		GuardCounterAttackDuration, false);
 
-	CurrentCounterTarget = InInstigator;
+	if (InInstigator)
+	{
+		CurrentCounterTarget = InInstigator;
+		
+		if (APFCharacterBase* TargetCharacter = Cast<APFCharacterBase>(CurrentCounterTarget))
+		{
+			TargetCharacter->ApplyStamina(-10.f);//GetStaminaComponent()->AddStamina(-10.f);
+		}
+	}
 }
 
 void APFPlayerCharacter::SuccessGuard(float InStaminaValue)
@@ -447,6 +539,16 @@ void APFPlayerCharacter::SuccessAbilityCounter()
 		TargetingComponent->ToggleTargeting();
 		GetCharacterMovement()->MaxWalkSpeed = 600.f;	
 	}
+}
+
+bool APFPlayerCharacter::CanRegenerateStamina() const
+{
+	if (CombatStateComponent->GetCurrentState() == ECombatState::Guard)
+	{
+		return false;
+	}
+
+	return true;
 }
 
 void APFPlayerCharacter::RotateMovement()
@@ -501,13 +603,21 @@ void APFPlayerCharacter::HandleExecutionCollisionTimer()
 	TArray<FHitResult> Results;
 	
 	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypeQuery;
-	ObjectTypeQuery.Add(UEngineTypes::ConvertToObjectType(ECollisionChannel::ECC_Pawn));
+	ObjectTypeQuery.Add(UEngineTypes::ConvertToObjectType(ECC_CharacterMesh));
 	
-	EDrawDebugTrace::Type DebugTrace = EDrawDebugTrace::None;
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(MyTrace), false);
+	QueryParams.AddIgnoredActor(this);
+	QueryParams.bReturnPhysicalMaterial = true;
 	
-	bool bHit = UKismetSystemLibrary::SphereTraceMultiForObjects(
-	GetWorld(), GetActorLocation(), GetActorLocation(), 100.f, ObjectTypeQuery,
-	false, IgnoreActors, DebugTrace, Results, true, FColor::Red, FColor::Green, 1.f);
+	bool bHit = GetWorld()->SweepMultiByObjectType(
+		Results,
+		GetActorLocation(),
+		GetActorLocation(),
+		FQuat::Identity,
+		ObjectTypeQuery,
+		FCollisionShape::MakeSphere(100.f),
+		QueryParams
+	);
 	
 	if (!bHit) return;
 	
@@ -528,6 +638,7 @@ void APFPlayerCharacter::HandleExecutionCollisionTimer()
 			if (TargetDistance < NearestDistance)
 			{
 				ExecutionTargetCharacter = OtherPFCharacter;
+				ExecutionEffectInfo.Hit = SweepResult;
 				NearestDistance = TargetDistance;
 			}
 		}
@@ -550,18 +661,16 @@ void APFPlayerCharacter::HandleExecutionCollisionTimer()
 void APFPlayerCharacter::OnExecutionTrigger()
 {
 	Super::OnExecutionTrigger();
-	
-	FVector ClosestLocation;
-	GetMesh()->GetClosestPointOnCollision(ExecutionTargetCharacter->GetActorLocation(), ClosestLocation);
 
-	FTransform EffectTransform;
-	EffectTransform.SetLocation(ClosestLocation);
+	FVector EffectLocation = ExecutionTargetCharacter->GetMesh()->Bounds.GetBox().GetClosestPointTo(Weapon->GetActorLocation());
+	
+	ExecutionEffectInfo.EffectTransform.SetLocation(EffectLocation);
 	
 	TArray<TObjectPtr<UEffectType>> Effects = ExecutionDataAsset->EffectContainer[0].Effect;
 	
 	for (auto& Effect : Effects)
 	{
-		Effect->ApplyEffect(ExecutionTargetCharacter, this, EffectTransform ,false);
+		Effect->ApplyEffect(ExecutionTargetCharacter, this, ExecutionEffectInfo ,false);
 	}
 }
 
@@ -591,24 +700,35 @@ void APFPlayerCharacter::HandleInteractionSphereEndOverlap(UPrimitiveComponent* 
 {
 	if (OtherActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
 	{
-		InteractableActors.AddUnique(OtherActor);
-		IInteractable::Execute_VisibleInteractablePrompt(OtherActor, true);
-	}
-	
-	IInteractable* Interactable = Cast<IInteractable>(OtherActor);
-	if (Interactable)
-	{
 		if (InteractableActors.Contains(OtherActor))
 		{
 			InteractableActors.Remove(OtherActor);
 		}
 		
-		Interactable->Execute_VisibleInteractablePrompt(OtherActor, false);
+		IInteractable::Execute_VisibleInteractablePrompt(OtherActor, false);
 	}
+}
+
+void APFPlayerCharacter::HandleAroundActorTriggerBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (APFAICharacter* OhterAICharacter = Cast<APFAICharacter>(OtherActor))
+	{
+		OhterAICharacter->SetVisibleStatusWidget(true);
+	}
+}
+
+void APFPlayerCharacter::HandleAroundActorTriggerEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+{
+	if (APFAICharacter* OhterAICharacter = Cast<APFAICharacter>(OtherActor))
+    {
+    	OhterAICharacter->SetVisibleStatusWidget(false);
+    }
 }
 
 bool APFPlayerCharacter::TryAttack()
 {
+	if (StaminaComponent->GetCurrentStamina() <= 0) return false;
+	
 	if (bCanAttack && Weapon->GetGroundAttackCnt() == 0)
 	{
 		RotateMovement();
@@ -628,6 +748,8 @@ bool APFPlayerCharacter::TryAttack()
 
 bool APFPlayerCharacter::TryStrongAttack()
 {
+	if (StaminaComponent->GetCurrentStamina() <= 0) return false;
+	
 	if (bCanAttack && Weapon->GetGroundAttackCnt() == 0)
 	{
 		RotateMovement();

@@ -11,6 +11,7 @@
 #include "ProjectF/Controller/PFAIController.h"
 #include "ProjectF/Interaction/DialogueComponent.h"
 #include "ProjectF/Manager/AnimManager.h"
+#include "ProjectF/Manager/EnemyManager.h"
 #include "ProjectF/Manager/PFGameInstance.h"
 #include "ProjectF/UI/HUD/ExecutionProgressWidget.h"
 
@@ -29,6 +30,9 @@ void APFAICharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	SpawnTransform = GetTransform();
+
+	HealthWidgetComponent->SetVisibility(false);
 	ExecutionWidgetComponent->SetVisibility(false);
 	
 	UUserWidget* ExecutionUserWidget = ExecutionWidgetComponent->GetWidget();
@@ -38,6 +42,24 @@ void APFAICharacter::BeginPlay()
 	if (!ExecutionWidget) return;
 	
 	ExecutionCooldownDelegate.AddDynamic(ExecutionWidget, &UExecutionProgressWidget::OnUpdateHoldProgress);
+}
+
+void APFAICharacter::StartDeadCharacter()
+{
+	Super::StartDeadCharacter();
+
+	UGameInstance* GameInstance = GetGameInstance();
+	if (!GameInstance) return;
+
+	UPFGameInstance* PFGameInstance = Cast<UPFGameInstance>(GameInstance);
+	if (!PFGameInstance) return;
+
+	UEnemyManager* EnemyManager = PFGameInstance->GetEnemyManager();
+	if (!EnemyManager) return;
+
+	ExecutionWidgetComponent->SetVisibility(false);
+	
+	EnemyManager->AddDeadEnemy(this, SpawnTransform);
 }
 
 float APFAICharacter::ApplyStamina(float InStamina)
@@ -85,7 +107,7 @@ float APFAICharacter::ApplyStamina(float InStamina)
 			GetMesh()->GetAnimInstance()->Montage_Play(StunAnimMontage);
 		}
 	}, GetWorld()->GetDeltaSeconds(), false);
-
+	
 	bExecuted = true;
 	
 	return InStamina;
@@ -109,8 +131,13 @@ void APFAICharacter::HandleExecutionCooldownTimer()
 
 void APFAICharacter::ModifyDamage(float DamageAmount, AActor* InInstigator)
 {
-	ApplyStamina(-DamageAmount);
 	HealthComponent->ApplyDamage(DamageAmount, InInstigator);
+	if (HealthComponent->GetHealth() > 0.f)
+	{
+		ApplyStamina(-DamageAmount);	
+	}
+	
+	Super::ModifyDamage(DamageAmount, InInstigator);
 }
 
 AActor* APFAICharacter::GetTarget() const
@@ -130,6 +157,11 @@ AActor* APFAICharacter::GetTarget() const
 	}
 	
 	return nullptr;
+}
+
+void APFAICharacter::SetVisibleStatusWidget(bool bVisible)
+{
+	HealthWidgetComponent->SetVisibility(bVisible);
 }
 
 void APFAICharacter::Tick(float DeltaTime)

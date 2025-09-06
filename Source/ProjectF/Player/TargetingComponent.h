@@ -23,6 +23,9 @@ class PROJECTF_API UTargetingComponent : public UActorComponent
 public:
 	UTargetingComponent();
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
+	UFUNCTION()
+	void UpdateLockOnCamera();
 	
 	void SetupPlayerInputTargetingComponent(class ULocalPlayer* LocalPlayer, class UInputComponent* PlayerInputComponent);
 	
@@ -42,15 +45,16 @@ protected:
 	
 	void UpdateNearestTargetActor();
 	
-	UFUNCTION()
-	void UpdateLockOnCamera();
+
 
 	void ResetCamera();
-	
 private:
 	UPROPERTY()
 	TObjectPtr<APFCharacterBase> OwnerCharacter;
-	
+
+	UPROPERTY()
+	TObjectPtr<AController> OwnerController;
+
 	UPROPERTY()
 	TObjectPtr<USpringArmComponent> OwnerCameraSpringArmComponent;
 	
@@ -82,4 +86,7 @@ private:
 
 	UPROPERTY(EditDefaultsOnly, Category = "BaseSetting", meta = (AllowPrivateAccess = "true"))
 	float ClearLockOnDistance;
+
+	UPROPERTY(EditDefaultsOnly, Category = "BaseSetting", meta = (AllowPrivateAccess = "true"))
+	float ResetTime = 1.0f;
 };

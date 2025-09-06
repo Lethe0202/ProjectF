@@ -26,7 +26,7 @@ struct FDialogueChoiceInfo
 	
 public:
 	UPROPERTY(EditAnywhere)
-	EDialogueNextType DialogueNextType;
+	EDialogueNextType DialogueNextType = EDialogueNextType::NextLine;
 
 	UPROPERTY(EditAnywhere)
 	FText ChoiceDisplayText;
@@ -44,7 +44,7 @@ public:
 	UPROPERTY(EditAnywhere)
 	FText DisplayName;
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, meta = (MultiLine = "true"))
 	FText Dialogue;
 	
 	UPROPERTY(EditAnywhere)

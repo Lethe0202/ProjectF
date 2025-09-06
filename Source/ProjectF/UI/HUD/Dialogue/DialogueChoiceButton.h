@@ -33,6 +33,7 @@ public:
 	FOnChoiceButtonClicked OnChoiceButtonClicked;
 	
 protected:
+	UPROPERTY()
 	FDialogueChoiceInfo CurrentDialogueChoice;
 
 	UPROPERTY(meta = (BindWidget))

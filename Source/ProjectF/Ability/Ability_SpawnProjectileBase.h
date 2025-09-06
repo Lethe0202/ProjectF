@@ -8,6 +8,13 @@
 
 class AProjectileBase;
 
+UENUM()
+enum class EProjectileHitType
+{
+	Single,
+	Range,
+};
+
 /**
  * 
  */
@@ -20,8 +27,13 @@ public:
 	virtual void AbilityEffect(int Index) override;
 
 protected:
+	virtual AProjectileBase* SpawnProjectile();
+	
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
 	void OnHit(AActor* SelfActor, AActor* OtherActor, const FHitResult& Hit);
+
+	void ApplySingleEffect(AActor* SelfActor, AActor* OtherActor, const FHitResult& Hit);
+	void ApplyRangeEffect(AActor* SelfActor, AActor* OtherActor, const FHitResult& Hit);
 	
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Projectile", meta=(AllowPrivateAccess=true))
@@ -30,6 +42,12 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Projectile", meta=(AllowPrivateAccess=true))
 	FVector SpawnOffset;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Projectile", meta=(AllowPrivateAccess=true))
+	EProjectileHitType ProjectileHitType;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Projectile", meta=(AllowPrivateAccess=true), meta=(EditCondition = "ProjectileHitType == EProjectileHitType::Range", EditConditionHides))
+	float ProjectileHitRadius;
+	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Projectile", meta=(AllowPrivateAccess=true))
 	TSubclassOf<AProjectileBase> ProjectileClass;
 };

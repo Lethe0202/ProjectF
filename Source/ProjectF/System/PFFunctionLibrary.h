@@ -1,5 +1,5 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
-
+	
 #pragma once
 
 #include "CoreMinimal.h"
@@ -17,4 +17,7 @@ class PROJECTF_API UPFFunctionLibrary : public UBlueprintFunctionLibrary
 public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="ProjectF")
 	static UWorld* GetActorWorld (const AActor* Actor);
+
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category="ProjectF")
+	static bool IsInGame (const UWorld* World);
 };

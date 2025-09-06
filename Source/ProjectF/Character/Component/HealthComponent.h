@@ -18,21 +18,25 @@ public:
 	UHealthComponent();
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
+	void InitHealth(float InMaxHealth);
+	
 	void ApplyHeal(float Amount);
 	void ApplyDamage(float Amount, AActor* Instigator);
 	
 protected:
 	virtual void BeginPlay() override;
 	
-	void UpdaetHealth(int Amount, AActor* Instigator);
+	void UpdateHealth(int Amount, AActor* Instigator);
+
+public:
+	float GetMaxHealth() const { return MaxHealth; }
+	float GetHealth() const { return CurrentHealth; }
 	
 public:
 	UPROPERTY(BlueprintAssignable)
 	FPFStatusChanged OnHealthStatusChanged;
 	
 protected:
-	UPROPERTY(EditAnywhere)
 	float MaxHealth;
-	
 	float CurrentHealth;
 };

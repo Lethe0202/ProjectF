@@ -35,8 +35,8 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<UAbilityDataAsset> AbilityDataAsset;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool bMultiHit = false;
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	//bool bMultiHit = false;
 	
 	UPROPERTY()
 	TWeakObjectPtr<AActor> Owner;

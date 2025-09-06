@@ -22,17 +22,23 @@ void UHealthComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 }
 
+void UHealthComponent::InitHealth(float InMaxHealth)
+{
+	MaxHealth = InMaxHealth;
+	CurrentHealth = MaxHealth;
+}
+
 void UHealthComponent::ApplyHeal(float Amount)
 {
-	UpdaetHealth(Amount, GetOwner());
+	UpdateHealth(Amount, GetOwner());
 }
 
 void UHealthComponent::ApplyDamage(float Amount, AActor* Instigator)
 {
-	UpdaetHealth(-Amount, Instigator);
+	UpdateHealth(-Amount, Instigator);
 }
 
-void UHealthComponent::UpdaetHealth(int Amount, AActor* Instigator)
+void UHealthComponent::UpdateHealth(int Amount, AActor* Instigator)
 {
 	float OldValue = CurrentHealth;
 	CurrentHealth = UKismetMathLibrary::FClamp(CurrentHealth + Amount, 0.f, MaxHealth);

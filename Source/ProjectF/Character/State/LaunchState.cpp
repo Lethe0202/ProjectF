@@ -25,9 +25,13 @@ ECombatState LaunchState::GetStateType()
 bool LaunchState::CanChangeState(ECombatState CharacterStateType)
 {
 	bool bCanChangeState = false;
+	bCanChangeState |= CharacterStateType == ECombatState::Idle;
+	//bCanChangeState |= CharacterStateType == ECombatState::Attacking;
+	//bCanChangeState |= CharacterStateType == ECombatState::Stagger;
 	bCanChangeState |= CharacterStateType == ECombatState::Launch;
+	bCanChangeState |= CharacterStateType == ECombatState::Execution;
 	bCanChangeState |= CharacterStateType == ECombatState::TakeDown;
-	bCanChangeState |= CharacterStateType == ECombatState::Stun;
+	bCanChangeState |= CharacterStateType == ECombatState::Dead;
 
 	return bCanChangeState;
 }

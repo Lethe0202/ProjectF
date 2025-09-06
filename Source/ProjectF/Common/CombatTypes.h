@@ -5,12 +5,15 @@
 #include "MovieSceneSequencePlaybackSettings.h"
 #include "Engine/DataTable.h"
 #include "TargetTypes.h"
-#include "ProjectF/Ability/DataAsset/AbilityUIDataAsset.h"
+#include "UObject/PrimaryAssetId.h"
 #include "CombatTypes.generated.h"
 
 class UBehaviorTree;
 class UAbilityBase;
 class ULevelSequence;
+
+class UUISlotDataAsset;
+class UHitSFXDataAsset;
 
 UENUM(BlueprintType)
 enum class ECharacterDirection : uint8
@@ -63,6 +66,9 @@ public:
 
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UAnimMontage> Stun;
+	
+	UPROPERTY(EditAnywhere)
+	TObjectPtr<UAnimMontage> Dead;
 };
 
 USTRUCT(BlueprintType)
@@ -78,13 +84,19 @@ public:
 	TArray<TObjectPtr<UEffectType>> Effect;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool bStrongEffect;
+	bool bStrongEffect = false;
 };
 
-UCLASS()
+UCLASS(BlueprintType)
 class UAbilityDataAsset : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
+	
+protected:
+	virtual FPrimaryAssetId GetPrimaryAssetId() const override
+	{
+		return FPrimaryAssetId(FPrimaryAssetType("AbilityData"), GetPackage()->GetFName());
+	}
 	
 public:
 	UPROPERTY(EditAnywhere)
@@ -120,9 +132,9 @@ public:
 
 	UPROPERTY(EditAnywhere, meta=(EditCondition="bIsCounterSkill", EditConditionHides))
 	TObjectPtr<UAnimMontage> CounterSuccessAnim;
-
-	UPROPERTY(EditAnywhere, Category= "DataAsset")
-	TObjectPtr<UAbilityUIDataAsset> AbilityUIDataAsset;
+	
+	UPROPERTY(EditAnywhere, Category = "DataAsset")
+	TObjectPtr<UUISlotDataAsset> AbilityUIDataAsset;
 };
 
 USTRUCT()
@@ -138,7 +150,10 @@ public:
 	}
 	
 public:
+	UPROPERTY()
 	float StartHoldTime;
+
+	UPROPERTY()
 	float CurrentHoldingTime;
 };
 

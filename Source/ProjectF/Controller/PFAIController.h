@@ -21,7 +21,8 @@ class PROJECTF_API APFAIController : public AAIController
 public:
 	APFAIController();
 	virtual void Tick(float DeltaTime) override;
-	
+
+	UFUNCTION(BlueprintCallable)
 	void StartTree();
 	
 	virtual FGenericTeamId GetGenericTeamId() const override; //{ return static_cast<uint8>(TeamType); }
@@ -35,7 +36,7 @@ protected:
 	void OnUpdatePerception(AActor* Actor, FAIStimulus Stimulus);
 	
 private:
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UBehaviorTreeComponent> BehaviorTreeComponent;
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = AISetting, meta = (AllowPrivateAccess = "true"))

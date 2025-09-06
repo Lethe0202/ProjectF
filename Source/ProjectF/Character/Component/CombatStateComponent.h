@@ -13,7 +13,7 @@ UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent), Blueprintable)
 class PROJECTF_API UCombatStateComponent : public UActorComponent
 {
 	GENERATED_BODY()
-
+	
 public:
 	UCombatStateComponent();
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
