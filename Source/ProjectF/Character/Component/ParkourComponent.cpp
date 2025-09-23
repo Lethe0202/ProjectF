@@ -7,8 +7,8 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
-#include "Kismet/KismetMathLibrary.h"
 #include "ProjectF/Character/PFCharacterBase.h"
+#include "ProjectF/Common/PFCollisionChannel.h"
 
 UParkourComponent::UParkourComponent()
 {
@@ -47,17 +47,13 @@ void UParkourComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
 	FVector StartLocation2 = OwnerCharacter->GetMesh()->GetSocketLocation(FName("head")) + OwnerCharacter->GetActorForwardVector() * 40.f;
 	
-	FCollisionQueryParams CollisionQueryParams;
-	CollisionQueryParams.AddIgnoredActor(Owner);
-	CollisionQueryParams.bDebugQuery = false;
-	
 	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypeQuery;
-	ObjectTypeQuery.Add(UEngineTypes::ConvertToObjectType(ECollisionChannel::ECC_GameTraceChannel2));
-	
+	ObjectTypeQuery.Add(UEngineTypes::ConvertToObjectType(ECC_ClimbUp));
+	 
 	TArray<AActor*> IgnoreActors;
 	IgnoreActors.Add(Owner);
 	
-	bool bHit = UKismetSystemLibrary::SphereTraceSingleForObjects(GetWorld(), StartLocation2, StartLocation2 + GetOwner()->GetActorUpVector() * -1.f * 75.f, 15.f, ObjectTypeQuery, true, IgnoreActors, EDrawDebugTrace::ForOneFrame, HitResult, true, FColor::Red, FColor::Green, 1.f);
+	bool bHit = UKismetSystemLibrary::SphereTraceSingleForObjects(GetWorld(), StartLocation2, StartLocation2 + GetOwner()->GetActorUpVector() * -1.f * 75.f, 15.f, ObjectTypeQuery, true, IgnoreActors, EDrawDebugTrace::None , HitResult, true, FColor::Red, FColor::Green, 1.f);
 	if (bHit)
 	{
 		StartParkour(HitResult.GetActor(), HitResult);

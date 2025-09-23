@@ -1,9 +1,9 @@
-# Unreal Engine 5 Portfolio ProjectF
+# Unreal Engine 5 Portfolio Invasion
 Unreal Engnie 5로 제작한 TPS 액션 게임입니다.
 ## 프로젝트 소개
 
 #### 개발 기간
-* 2025.06 ~ ing
+* 2025.06 ~ 2025.09 (약 3개월)
 
 #### 개발 인원
 * 1명
@@ -11,6 +11,9 @@ Unreal Engnie 5로 제작한 TPS 액션 게임입니다.
 #### 개발 환경
 * Engine : Unreal Engine 5.5.4
 * IDE : Rider
+
+#### 유튜브 영상
+* https://www.youtube.com/watch?v=nAkTw5vhleA
 
 ## 주요 기능
 ### 주로 유튜브 영상에 포함되지 않은 설명으로 구성했습니다.

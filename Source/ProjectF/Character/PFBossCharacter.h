@@ -29,10 +29,7 @@ protected:
 protected:
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UBossPhaseDataAsset> BossPhaseDataAsset;
-
+	
 	UPROPERTY()
 	TObjectPtr<ULevelSequencePlayer> LevelSequencePlayer;
-
-	UPROPERTY(EditAnywhere)
-	FName DisplayName;
 };

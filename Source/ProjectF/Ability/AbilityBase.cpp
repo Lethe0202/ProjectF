@@ -106,13 +106,15 @@ void UAbilityBase::AbilityEffect(int Index)
 			
 			for (const UEffectType* EffectType : AbilityDataAsset->EffectContainer[Index].Effect)
 			{
-				FTransform EffectTransform;
+				FEffectInfo EffectInfo;
 				if (HitResult.IsValidIndex(i))
 				{
-					EffectTransform.SetLocation(HitResult[i].ImpactPoint);
+					EffectInfo.Hit = HitResult[i];
+					EffectInfo.HitNormal = HitResult[i].ImpactNormal;
+					EffectInfo.EffectTransform.SetLocation(HitResult[i].ImpactPoint);
 				}
 				
-				EffectType->ApplyEffect(TargetActors[i], Owner.Get(), EffectTransform, AbilityDataAsset->EffectContainer[Index].bStrongEffect);
+				EffectType->ApplyEffect(TargetActors[i], Owner.Get(), EffectInfo, AbilityDataAsset->EffectContainer[Index].bStrongEffect);
 			}
 		}
 	}
@@ -127,11 +129,6 @@ void UAbilityBase::AbilityEffect(int Index)
 				bLaunch = true;
 			}
 		}
-	}
-
-	if (bMultiHit)
-	{
-		EffectedActors.Empty();
 	}
 }
 

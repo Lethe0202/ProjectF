@@ -11,10 +11,11 @@ class UAbilityBase;
 class USkeletalMeshComponent;
 class UNiagaraComponent;
 
+class USoundCue;
+
 UENUM(BlueprintType)
 enum class EWeaponAttackType : uint8
 {
-	None,
 	Primary,
 	Strong
 };
@@ -55,8 +56,8 @@ private:
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent;
 
-	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UParticleSystemComponent> WeaponChargeParticle;
+	UPROPERTY()
+	UMaterialInstanceDynamic* WeaponDynamicMaterial;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta=(allowPrivateAccess=true))
 	TObjectPtr<UShapeComponent> ShapeComponent; 
@@ -108,7 +109,10 @@ private:
 
 	UPROPERTY()
 	TArray<class APFCharacterBase*> HitCharacters;
-	
+
+	/*
+	 * Ability
+	 */
 	UPROPERTY(EditAnywhere, Category = "Ability")
 	TObjectPtr<UAbilityDataAsset> PrimaryAttackDataAsset;
 	

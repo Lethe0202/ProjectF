@@ -16,4 +16,22 @@ class PROJECTF_API UAbility_Sting : public UAbilityBase
 
 public:
 	virtual void AbilityEffect(int Index) override;
+
+protected:
+	UFUNCTION()
+	void HandleStingMovement();
+	
+protected:
+	UPROPERTY(EditAnywhere)
+	float StingTime = 1.0f;
+	
+	UPROPERTY(EditAnywhere)
+	float MovementLength;
+
+	FVector TempStartLocation;
+	FVector TempEndLocation;
+	//FVector TempDirectionVector = FVector::ZeroVector;
+
+	float TempElapsedTime = 0.0f;
+	FTimerHandle StingTimerHandle;
 };

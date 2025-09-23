@@ -17,6 +17,7 @@ bool StunState::CanChangeState(ECombatState CharacterStateType)
 	bool bCanChangeState = false;
 	
 	bCanChangeState |= CharacterStateType == ECombatState::Idle;
+	bCanChangeState |= CharacterStateType == ECombatState::Dead;
 	
 	return bCanChangeState;
 }

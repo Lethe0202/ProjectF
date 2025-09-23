@@ -1,6 +1,5 @@
 ﻿#include "EffectTypes.h"
 
-#include "Engine/DamageEvents.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PawnMovementComponent.h"
@@ -9,57 +8,89 @@
 
 #include "ProjectF/Character/PFCharacterBase.h"
 #include "ProjectF/Character/Component/CombatStateComponent.h"
-#include "ProjectF/Character/Component/StaminaComponent.h"
 #include "ProjectF/Character/State/ICombatState.h"
+#include "ProjectF/DataAsset/HitSFXDataAsset.h"
 #include "ProjectF/Manager/AnimManager.h"
 #include "ProjectF/Manager/PFGameInstance.h"
 
-void UEffectType::ApplyEffect(AActor* Target, AActor* EffectCauser, FTransform EffectTransform, bool bStrongEffect) const
+void UEffectType::ApplyEffect_Implementation(AActor* Target, AActor* EffectCauser, FEffectInfo EffectInfo, bool bStrongEffect) const
 {
 	return;
 }
 
-void UEffectType_Damage::ApplyEffect(AActor* Target, AActor* EffectCauser, FTransform EffectTransform, bool bStrongEffect) const
+bool UEffectType::CanApplyEffect(AActor* Target) const
 {
-	if (EffectCauser)
+	ACharacter* Character = Cast<ACharacter>(Target);
+	if (!Character) return false;
+	
+	APFCharacterBase* PFCharacterBase = Cast<APFCharacterBase>(Character);
+	if (!PFCharacterBase) return false;
+	
+	UCombatStateComponent* TargetCombatState = PFCharacterBase->GetCombatStateComponent();
+	if (!TargetCombatState) return false;
+
+	if (TargetCombatState->GetCurrentState() == ECombatState::Dead)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Red, TEXT("Damage"));	
+		return false;
+	}
+
+	return true;
+}
+
+void UEffectType_Damage::ApplyEffect_Implementation(AActor* Target, AActor* EffectCauser, FEffectInfo EffectInfo, bool bStrongEffect) const
+{
+	if (!CanApplyEffect(Target))
+	{
+		return;
 	}
 	
-	FHitResult Hit;
-	FVector HitFromDirection;
+	FVector HitFromDirection = EffectInfo.EffectTransform.GetLocation();
 	
 	TSubclassOf<UDamageType> DamageType = nullptr;
 	if (bStrongEffect)
 	{
 		DamageType = UStrongDamageType::StaticClass();
 	}
+	
 	AController* Instigator = EffectCauser->GetInstigatorController();
-	UGameplayStatics::ApplyPointDamage(Target, Damage, HitFromDirection, Hit, Instigator, EffectCauser, DamageType);
+	UGameplayStatics::ApplyPointDamage(Target, Damage, HitFromDirection, EffectInfo.Hit, Instigator, EffectCauser, DamageType);
 }
 
-void UEffectType_Stamina::ApplyEffect(AActor* Target, AActor* EffectCauser, FTransform EffectTransform, bool bStrongEffect) const
-{
-	Super::ApplyEffect(Target, EffectCauser, EffectTransform, bStrongEffect);
-
-	APFCharacterBase* EffectTargetCharacter = Cast<APFCharacterBase>(Target);
-	if (!EffectTargetCharacter) return;
-
-	//EffectTargetCharacter->ApplyStamina(Stamina);
-}
-
-void UEffectType_HitEffect::ApplyEffect(AActor* Target, AActor* EffectCauser, FTransform EffectTransform, bool bStrongEffect) const
+void UEffectType_HitEffect::ApplyEffect_Implementation(AActor* Target, AActor* EffectCauser, FEffectInfo EffectInfo, bool bStrongEffect) const
 {
 	if (ParticleSystem)
 	{
-		UParticleSystemComponent* ParticleSystemComponent = UGameplayStatics::SpawnEmitterAtLocation(Target->GetWorld(), ParticleSystem, EffectTransform.GetLocation());
+		UParticleSystemComponent* ParticleSystemComponent = UGameplayStatics::SpawnEmitterAtLocation(Target->GetWorld(), ParticleSystem, EffectInfo.EffectTransform.GetLocation());
 		float WorldTimeDelation = 1.f / UGameplayStatics::GetGlobalTimeDilation(Target->GetWorld());
 		ParticleSystemComponent->CustomTimeDilation = WorldTimeDelation;
 	}
+
+	ACharacter* Character = Cast<ACharacter>(Target);
+	if (!Character) return;
+	
+	APFCharacterBase* PFCharacterBase = Cast<APFCharacterBase>(Character);
+	if (!PFCharacterBase) return;
+	
+	if (PFCharacterBase->IsGuardCounterSuccess()) return;
+	if (PFCharacterBase->GetCombatStateComponent()->GetCurrentState() == ECombatState::Guard) return;
+	
+	if (HitSFXDataAsset && EffectInfo.Hit.PhysMaterial.IsValid() && HitSFXDataAsset->SurfaceSoundMap.Contains(EffectInfo.Hit.PhysMaterial->SurfaceType))
+	{
+		USoundBase* SoundCue = HitSFXDataAsset->SurfaceSoundMap[EffectInfo.Hit.PhysMaterial->SurfaceType];
+		if (SoundCue)
+		{
+			UGameplayStatics::PlaySoundAtLocation(Target->GetWorld(), SoundCue, EffectInfo.EffectTransform.GetLocation());
+		}
+	}
 }
 
-void UEffectType_BeamEffect::ApplyEffect(AActor* Target, AActor* EffectCauser, FTransform EffectTransform, bool bStrongEffect) const
+void UEffectType_BeamEffect::ApplyEffect_Implementation(AActor* Target, AActor* EffectCauser, FEffectInfo EffectInfo, bool bStrongEffect) const
 {
+	if (!CanApplyEffect(Target))
+	{
+		return;
+	}
+	
 	if (!ParticleSystem) return;
 	
 	if (ACharacter* EffectCauserCharacter = Cast<ACharacter>(EffectCauser))
@@ -73,14 +104,19 @@ void UEffectType_BeamEffect::ApplyEffect(AActor* Target, AActor* EffectCauser, F
 			
 			float WorldTimeDelation = 1.f / UGameplayStatics::GetGlobalTimeDilation(Target->GetWorld());
 			ParticleSystemComponent->CustomTimeDilation = WorldTimeDelation;
-			ParticleSystemComponent->SetVectorParameter("BeamEnd", EffectTransform.GetLocation());
+			ParticleSystemComponent->SetVectorParameter("BeamEnd", EffectInfo.EffectTransform.GetLocation());
 			ParticleSystemComponent->Activate(false);
 		}
 	}
 }
 
-void UEffectType_Stagger::ApplyEffect(AActor* Target, AActor* EffectCauser, FTransform EffectTransform, bool bStrongEffect) const
+void UEffectType_Stagger::ApplyEffect_Implementation(AActor* Target, AActor* EffectCauser, FEffectInfo EffectInfo, bool bStrongEffect) const
 {
+	if (!CanApplyEffect(Target))
+	{
+		return;
+	}
+	
 	ACharacter* Character = Cast<ACharacter>(Target);
 	if (!Character) return;
 	
@@ -92,8 +128,8 @@ void UEffectType_Stagger::ApplyEffect(AActor* Target, AActor* EffectCauser, FTra
 	if (PFCharacterBase->GetCombatStateComponent()->GetInvincible()) return;
 	if (PFCharacterBase->GetCombatStateComponent()->GetSuperArmor()) return;
 		
-	bool bLaunch = PFCharacterBase->ChangeState(ECombatState::Stagger);
-	if (!bLaunch) return;
+	bool bCanStagger = PFCharacterBase->CanChangeState(ECombatState::Stagger);
+	if (!bCanStagger) return;
 
 	FVector DirectionVector = (Target->GetActorLocation() - EffectCauser->GetActorLocation()).GetSafeNormal();
 	FVector NewLocation = DirectionVector * Power;
@@ -104,14 +140,46 @@ void UEffectType_Stagger::ApplyEffect(AActor* Target, AActor* EffectCauser, FTra
 	{
 		bZOverride = true;
 	}
-			
+	
 	PFCharacterBase->LaunchCharacter(NewLocation, true, bZOverride);
-			
+	
 	UPFGameInstance* PFGameInstance = Cast<UPFGameInstance>(Character->GetGameInstance());
 	if (!PFGameInstance) return;
 	if (!PFGameInstance->GetAnimManager()) return;
-			
-	if (UAnimMontage* Montage = PFGameInstance->GetAnimManager()->GetHitDirection(PFCharacterBase->GetID(), ECharacterDirection::Forward))
+	
+	FVector ForwardVector = Target->GetActorForwardVector();
+	
+	float DotProduct = FVector::DotProduct(ForwardVector, DirectionVector * -1);
+	float Angle = FMath::Acos(DotProduct) * (180.f / PI);
+	
+	// 방향 판별용 (좌우)
+	float CrossZ = FVector::CrossProduct(ForwardVector, DirectionVector * -1).Z;
+	
+	if (CrossZ < 0)
+	{
+		Angle = -Angle;
+	}
+	
+	ECharacterDirection CharacterDirection;
+	
+	if (-46.f <= Angle && Angle <= 46.f) // 정면
+	{
+		CharacterDirection = ECharacterDirection::Forward;
+	}
+	else if (46 < Angle && Angle < 136) // 오른쪽
+	{
+		CharacterDirection = ECharacterDirection::Right;
+	}
+	else if (-136 < Angle && Angle < -46) // 왼쪽
+	{
+		CharacterDirection = ECharacterDirection::Left;
+	}
+	else // 뒤
+	{
+		CharacterDirection = ECharacterDirection::Backward;
+	}
+	
+	if (UAnimMontage* Montage = PFGameInstance->GetAnimManager()->GetHitDirection(PFCharacterBase->GetID(), CharacterDirection))
 	{
 		if (PFCharacterBase->GetMesh() && PFCharacterBase->GetMesh()->GetAnimInstance())
 		{
@@ -120,17 +188,22 @@ void UEffectType_Stagger::ApplyEffect(AActor* Target, AActor* EffectCauser, FTra
 	}
 }
 
-void UEffectType_Launch::ApplyEffect(AActor* Target, AActor* EffectCauser, FTransform EffectTransform, bool bStrongEffect) const
+void UEffectType_Launch::ApplyEffect_Implementation(AActor* Target, AActor* EffectCauser, FEffectInfo EffectInfo, bool bStrongEffect) const
 {
+	if (!CanApplyEffect(Target))
+	{
+		return;
+	}
+	
 	if (bChangestate)
 	{
 		if (bStrongEffect)
 		{
-			StrongEffect(Target, EffectCauser, EffectTransform);
+			StrongEffect(Target, EffectCauser, EffectInfo.EffectTransform);
 		}
 		else
 		{
-			NormalEffect(Target, EffectCauser, EffectTransform);
+			NormalEffect(Target, EffectCauser, EffectInfo.EffectTransform);
 		}
 	}
 	else // 단순 Launch (공중 공격을 위한)
@@ -157,8 +230,8 @@ void UEffectType_Launch::StrongEffect(AActor* Target, AActor* EffectCauser, FTra
 	
 	if (PFCharacterBase->GetCombatStateComponent()->GetIsCountering()) return;
 			
-	bool bLaunch = PFCharacterBase->ChangeState(ECombatState::Launch);
-	if (bLaunch)
+	bool bCanLaunch = PFCharacterBase->CanChangeState(ECombatState::Launch);
+	if (bCanLaunch)
 	{
 		FVector DirectionVector = (Target->GetActorLocation() - EffectCauser->GetActorLocation()).GetSafeNormal();
 		FVector NewLocation = DirectionVector * Power;
@@ -170,12 +243,13 @@ void UEffectType_Launch::StrongEffect(AActor* Target, AActor* EffectCauser, FTra
 		UPFGameInstance* PFGameInstance = Cast<UPFGameInstance>(Character->GetGameInstance());
 		if (!PFGameInstance) return;
 		if (!PFGameInstance->GetAnimManager()) return;
-				
+		
 		if (UAnimMontage* Montage = PFGameInstance->GetAnimManager()->GetHitInAir(PFCharacterBase->GetID()))
 		{
 			if (PFCharacterBase->GetMesh() && PFCharacterBase->GetMesh()->GetAnimInstance())
 			{
-				PFCharacterBase->GetMesh()->GetAnimInstance()->Montage_Play(Montage);	
+				PFCharacterBase->GetMesh()->GetAnimInstance()->Montage_Play(Montage);
+				PFCharacterBase->ChangeState(ECombatState::Launch);
 			}
 		}
 	}
@@ -199,11 +273,11 @@ void UEffectType_Launch::NormalEffect(AActor* Target, AActor* EffectCauser, FTra
 	{
 		PFCharacterBase->GetMovementComponent()->Velocity = FVector::ZeroVector;
 		PFCharacterBase->LaunchCharacter(Power, true, true);
-				
+		
 		UPFGameInstance* PFGameInstance = Cast<UPFGameInstance>(Character->GetGameInstance());
 		if (!PFGameInstance) return;
 		if (!PFGameInstance->GetAnimManager()) return;
-			
+		
 		if (UAnimMontage* Montage = PFGameInstance->GetAnimManager()->GetHitInAir(PFCharacterBase->GetID()))
 		{
 			if (PFCharacterBase->GetMesh() && PFCharacterBase->GetMesh()->GetAnimInstance())

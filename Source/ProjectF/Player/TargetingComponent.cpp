@@ -9,6 +9,7 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "Components/WidgetComponent.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "ProjectF/Character/PFCharacterBase.h"
 
@@ -35,6 +36,7 @@ void UTargetingComponent::BeginPlay()
 	OwnerCameraSpringArmComponent = GetOwner()->FindComponentByClass<USpringArmComponent>();
 
 	OwnerCharacter = Cast<APFCharacterBase>(GetOwner());
+	OwnerController = OwnerCharacter->GetController();
 	
 	TargetingWidgetComponent->SetVisibility(false);
 }
@@ -55,15 +57,12 @@ bool UTargetingComponent::CheckTargeting(TArray<FHitResult>& OutHitResults)
 	bool bHit =  GetWorld()->SweepMultiByObjectType(Results, GetOwner()->GetActorLocation(), GetOwner()->GetActorLocation(), FQuat::Identity, CollisionObjectQueryParams, Shape, Params);
 	OutHitResults = Results;
 	
-	UKismetSystemLibrary::DrawDebugSphere(GetOwner()->GetWorld(), GetOwner()->GetActorLocation(), CheckRangeSphereRadius, 12, FColor::Red, 3, 1.f);
 	return bHit;
 }
 
 void UTargetingComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	UpdateLockOnCamera();
 }
 
 void UTargetingComponent::SetupPlayerInputTargetingComponent(ULocalPlayer* LocalPlayer, UInputComponent* PlayerInputComponent)
@@ -81,6 +80,8 @@ void UTargetingComponent::ToggleTargeting()
 		ResetCamera();
 		return;
 	}
+
+	if (!OwnerCharacter->Controller) return;
 	
 	TArray<FHitResult> HitResults;
 	bool bHit = CheckTargeting(HitResults);
@@ -98,6 +99,10 @@ void UTargetingComponent::ToggleTargeting()
 		for (auto& HitResult : HitResults)
 		{
 			if (OwnerTeamAgent->GetTeamAttitudeTowards(*HitResult.GetActor()) != ETeamAttitude::Hostile) continue;
+			
+			ACharacter* HitCharacter = Cast<ACharacter>(HitResult.GetActor());
+			if (!HitCharacter) continue;
+			if (HitCharacter->IsPawnControlled() == false) continue;
 			
 			if (CacheTarget == nullptr)
 			{
@@ -131,14 +136,18 @@ void UTargetingComponent::ToggleTargeting()
 			{
 				TargetingWidgetComponent->AttachToComponent(LockOnTarget->GetRootComponent(), FAttachmentTransformRules::SnapToTargetIncludingScale);
 			}
-		
+			
 			TargetingWidgetComponent->SetVisibility(true);
+			
+			FRotator Rotator = FRotator::ZeroRotator;
+			Rotator.Pitch = OwnerController->GetControlRotation().Pitch;
+			OwnerCameraComponent->SetRelativeRotation(Rotator);
+			
+			if (OwnerCharacter)
+			{
+				OwnerCharacter->SetControlledMovement(false);
+			}
 		}
-	}
-
-	if (OwnerCharacter)
-	{
-		OwnerCharacter->SetControlledMovement(false);
 	}
 }
 
@@ -238,7 +247,7 @@ void UTargetingComponent::RightTargeting()
 				CacheMinAbsAngleDifference = FMath::Abs(CurrentAngleDelta);
 			}
 		}
-
+		
 		if (CacheTarget)
 		{
 			LockOnTarget = CacheTarget;
@@ -278,44 +287,81 @@ void UTargetingComponent::UpdateNearestTargetActor()
 
 void UTargetingComponent::UpdateLockOnCamera()
 {
-	if (!LockOnTarget) return;
+	if (!LockOnTarget)
+	{
+		return;
+	}
 
+	if (!OwnerCharacter) return;
+	if (!OwnerController) return;
+	
+	ACharacter* HitCharacter = Cast<ACharacter>(LockOnTarget);
+	if (!HitCharacter)
+	{
+		ResetCamera();
+		return;
+	}
+	
+	if (HitCharacter->IsPawnControlled() == false)
+	{
+		ResetCamera();
+        return;
+	}
+	
 	FVector TargetLocation = LockOnTarget->GetActorLocation();
-	FVector OwnerLocation = GetOwner()->GetActorLocation();
+	FVector OwnerLocation = OwnerCharacter->GetActorLocation();
+	
+	float DistanceToTarget = FVector::Distance(LockOnTarget->GetActorLocation(), OwnerLocation);
+	if (DistanceToTarget > CheckRangeSphereRadius)
+	{
+		ResetCamera();
+		return;
+	}
 	
 	// 목표 방향
 	FRotator LookAtRotation = (TargetLocation - OwnerLocation).Rotation();
 	
 	// 현재 카메라 회전
-	FRotator CurrentRotation = Cast<APawn>(GetOwner())->GetController()->GetControlRotation();
+	FRotator CurrentRotation = OwnerController->GetControlRotation();
 	
 	// 부드럽게 회전 보간
 	FRotator NewRotation = FMath::RInterpTo(CurrentRotation, LookAtRotation, GetWorld()->GetDeltaSeconds(), CameraInterpSpeed);
+
+	// 카메라 회전 clamp
+	NewRotation.Pitch = FMath::Clamp(NewRotation.Pitch , -20.f, 20.f);
 	
 	// 카메라 회전 적용
-	Cast<APawn>(GetOwner())->GetController()->SetControlRotation(NewRotation);
+	OwnerController->SetControlRotation(NewRotation);
 	
-	float DistanceToTarget = FVector::Distance(LockOnTarget->GetActorLocation(), OwnerLocation);
 	float Offset = FMath::Clamp(DistanceToTarget / 10.f, 100.f ,DistanceToTarget / 10.f);
 	
 	OwnerCameraSpringArmComponent->SocketOffset = FVector(-Offset, 0, Offset * 2.5f);
-	
-	float PitchRotation = FMath::Max(-1 * DistanceToTarget / 100.f, -180);
+
 	//대상과 플레이어가 원활하게 보이도록 카메라 로컬 회전
+	float PitchRotation = FMath::Max(-1 * DistanceToTarget / 100.f, -180);
 	float FinalPitchRotation = FMath::Min(-20.f, PitchRotation);
 	OwnerCameraComponent->SetRelativeRotation(FRotator(FinalPitchRotation, 0.f, 0.f));
 }
 
 void UTargetingComponent::ResetCamera()
 {
-	LockOnTarget = nullptr;
 	OwnerCameraSpringArmComponent->SocketOffset = FVector(0.f, 50.f, 100.f);
-	OwnerCameraComponent->SetRelativeRotation(FRotator::ZeroRotator);
-	TargetingWidgetComponent->SetVisibility(false);
 	
+	FRotator Rotator;
+	Rotator.Pitch = OwnerCameraComponent->GetRelativeRotation().Pitch;
+	Rotator.Roll = OwnerController->GetControlRotation().Roll;
+	Rotator.Yaw = OwnerController->GetControlRotation().Yaw;
+	OwnerController->SetControlRotation(Rotator);
+	
+	OwnerCameraComponent->SetRelativeRotation(FRotator::ZeroRotator);
+
 	if (OwnerCharacter)
-	{
-		OwnerCharacter->SetControlledMovement(true);
-	}
+    {
+    	OwnerCharacter->SetControlledMovement(true);
+		OwnerCharacter->GetCharacterMovement()->MaxWalkSpeed = 600.f;
+    }
+	
+	LockOnTarget = nullptr;
+	TargetingWidgetComponent->SetVisibility(false);
 }
 

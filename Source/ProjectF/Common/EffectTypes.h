@@ -2,15 +2,39 @@
 
 #include "EffectTypes.generated.h"
 
-UCLASS(Abstract, EditInlineNew)
+class UHitSFXDataAsset;
+
+USTRUCT(BlueprintType)
+struct FEffectInfo
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere)
+	FHitResult Hit;
+
+	UPROPERTY(EditAnywhere)
+	FTransform EffectTransform = FTransform();
+	
+	UPROPERTY(EditAnywhere)
+	FVector HitNormal = FVector::ZeroVector;
+	
+	UPROPERTY(EditAnywhere)
+	bool bStrongEffect = false;
+};
+
+UCLASS(Abstract, EditInlineNew, Blueprintable)
 class UEffectType : public UObject
 {
 	GENERATED_BODY()
 
 public:
 	UEffectType() {}
-	
-	virtual void ApplyEffect(AActor* Target, AActor* EffectCauser, FTransform EffectTransform = FTransform(), bool bStrongEffect = false) const;
+
+	UFUNCTION(BlueprintNativeEvent)
+	void ApplyEffect(AActor* Target, AActor* EffectCauser, FEffectInfo EffectInfo = FEffectInfo(), bool bStrongEffect = false) const;
+
+protected:
+	bool CanApplyEffect(AActor* Target) const;
 };
 
 UCLASS(EditInlineNew)
@@ -20,28 +44,11 @@ class UEffectType_Damage : public UEffectType
 	
 public:
 	UEffectType_Damage() {}
-	virtual void ApplyEffect(AActor* Target, AActor* EffectCauser, FTransform EffectTransform = FTransform(), bool bStrongEffect = false) const override;
+	virtual void ApplyEffect_Implementation(AActor* Target, AActor* EffectCauser, FEffectInfo EffectInfo = FEffectInfo(), bool bStrongEffect = false) const override;
 	
 protected:
 	UPROPERTY(EditAnywhere)
 	float Damage;
-};
-
-UCLASS(EditInlineNew)
-class UEffectType_Stamina : public UEffectType
-{
-	GENERATED_BODY()
-	
-public:
-	UEffectType_Stamina() {}
-	virtual void ApplyEffect(AActor* Target, AActor* EffectCauser, FTransform EffectTransform = FTransform(), bool bStrongEffect = false) const override;
-	
-protected:
-	UPROPERTY(EditAnywhere)
-	float Stamina;
-	
-	UPROPERTY(EditAnywhere)
-	bool bOnlyGuarded = true;
 };
 
 UCLASS(EditInlineNew)
@@ -51,11 +58,14 @@ class UEffectType_HitEffect : public UEffectType
 	
 public:
 	UEffectType_HitEffect() {}
-	virtual void ApplyEffect(AActor* Target, AActor* EffectCauser, FTransform EffectTransform = FTransform(), bool bStrongEffect = false) const override;
+	virtual void ApplyEffect_Implementation(AActor* Target, AActor* EffectCauser, FEffectInfo EffectInfo = FEffectInfo(), bool bStrongEffect = false) const override;
 	
 protected:
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UParticleSystem> ParticleSystem;
+	
+	UPROPERTY(EditAnywhere)
+	TObjectPtr<UHitSFXDataAsset> HitSFXDataAsset;
 };
 
 UCLASS(EditInlineNew)
@@ -65,7 +75,7 @@ class UEffectType_BeamEffect : public UEffectType
 	
 public:
 	UEffectType_BeamEffect() {}
-	virtual void ApplyEffect(AActor* Target, AActor* EffectCauser, FTransform EffectTransform = FTransform(), bool bStrongEffect = false) const override;
+	virtual void ApplyEffect_Implementation(AActor* Target, AActor* EffectCauser, FEffectInfo EffectInfo = FEffectInfo(), bool bStrongEffect = false) const override;
 	
 protected:
 	UPROPERTY(EditAnywhere)
@@ -83,7 +93,7 @@ class UEffectType_Stagger : public UEffectType
 	
 public:
 	UEffectType_Stagger() {}
-	virtual void ApplyEffect(AActor* Target, AActor* EffectCauser, FTransform EffectTransform = FTransform(), bool bStrongEffect = false) const override;
+	virtual void ApplyEffect_Implementation(AActor* Target, AActor* EffectCauser, FEffectInfo EffectInfo = FEffectInfo(), bool bStrongEffect = false) const override;
 	
 protected:
 	UPROPERTY(EditAnywhere)
@@ -97,7 +107,7 @@ class UEffectType_Launch : public UEffectType
 
 public:
 	UEffectType_Launch() {}
-	virtual void ApplyEffect(AActor* Target, AActor* EffectCauser, FTransform EffectTransform = FTransform(), bool bStrongEffect = false) const override;
+	virtual void ApplyEffect_Implementation(AActor* Target, AActor* EffectCauser, FEffectInfo EffectInfo = FEffectInfo(), bool bStrongEffect = false) const override;
 	
 protected:
 	void StrongEffect(AActor* Target, AActor* EffectCauser, FTransform EffectTransform) const;
