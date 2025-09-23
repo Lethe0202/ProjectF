@@ -17,6 +17,8 @@
 <img width="616" height="501" alt="image" src="https://github.com/user-attachments/assets/1cb7f570-4679-446b-8840-043bdf5ab7a7" />
 
 ### 원형태로 퍼지는 기능은 포스트 프로세스 머티리얼과 오브젝트 머티리얼 2곳에서 다음 이미지와 같은 노드를 사용하여 구현했습니다.
+### 핵심은 ScreenPosition을 사용하여 화면 중심으로부터 0~1 범위로 보간된 radius를 사용했습니다. 이를 통해 크기를 조절하여 원형 형태로 PostProcess 적용/미적용 범위를 구분했습니다.
+
 #### 포스트 프로세스 머티리얼
 <img width="931" height="753" alt="스크린샷 2025-09-07 054734" src="https://github.com/user-attachments/assets/32fee6f1-75c6-46d5-b5b9-b8366a78e971" />
 
